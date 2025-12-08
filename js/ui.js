@@ -55,6 +55,15 @@ class UI {
             }
         });
 
+        // Ctrl+Z / Cmd+Z for undo
+        window.addEventListener('keydown', (e) => {
+            const isUndo = (e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z');
+            if (isUndo) {
+                e.preventDefault();
+                this.app.undoLastAction();
+            }
+        });
+
         // Sync button -> open login overlay
         this.elements.syncBtn.addEventListener('click', () => {
             if (this.elements.loginOverlay) {
@@ -131,7 +140,7 @@ class UI {
             this.app.saveCategoryImage(scope, category, dataUrl);
         });
 
-        // Right sidebar hover / click -> choose time
+        // Right sidebar hover / click -> choose time in the same zoom window as day view
         if (this.elements.timeHoverContainer) {
             const container = this.elements.timeHoverContainer;
             const indicator = this.elements.timeHoverIndicator;
@@ -139,12 +148,17 @@ class UI {
             const updateIndicator = (clientY) => {
                 const rect = container.getBoundingClientRect();
                 const y = Math.min(Math.max(clientY - rect.top, 0), rect.height);
+
+                const { startMinutes, endMinutes } = this.app.getTimeStripWindow();
+                const span = Math.max(1, endMinutes - startMinutes);
                 const ratio = rect.height > 0 ? (y / rect.height) : 0;
-                const totalMinutes = Math.round(ratio * 24 * 60);
-                const hour = Math.floor(totalMinutes / 60);
-                const minute = totalMinutes % 60;
+                const minutes = startMinutes + ratio * span;
+
+                const hour = Math.floor(minutes / 60);
+                const minute = Math.round(minutes % 60);
                 const hh = hour.toString().padStart(2, '0');
                 const mm = minute.toString().padStart(2, '0');
+
                 indicator.textContent = `${hh}:${mm}`;
                 indicator.style.top = `${y - 8}px`;
             };
@@ -161,10 +175,15 @@ class UI {
             container.addEventListener('click', (e) => {
                 const rect = container.getBoundingClientRect();
                 const y = Math.min(Math.max(e.clientY - rect.top, 0), rect.height);
+
+                const { startMinutes, endMinutes } = this.app.getTimeStripWindow();
+                const span = Math.max(1, endMinutes - startMinutes);
                 const ratio = rect.height > 0 ? (y / rect.height) : 0;
-                const totalMinutes = Math.round(ratio * 24 * 60);
-                const hour = Math.floor(totalMinutes / 60);
-                const minute = totalMinutes % 60;
+                const minutes = startMinutes + ratio * span;
+
+                const hour = Math.floor(minutes / 60);
+                const minute = Math.round(minutes % 60);
+
                 this.app.openEventCreationAt(hour, minute);
             });
         }

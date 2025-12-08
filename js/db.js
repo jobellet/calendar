@@ -89,4 +89,18 @@ class Database {
             };
         });
     }
+
+    clear(storeName) {
+        return new Promise((resolve, reject) => {
+            const transaction = this.db.transaction([storeName], 'readwrite');
+            const store = transaction.objectStore(storeName);
+            const request = store.clear();
+
+            request.onsuccess = () => resolve();
+            request.onerror = (event) => {
+                console.error(`Error clearing ${storeName}:`, event.target.error);
+                reject(event.target.error);
+            };
+        });
+    }
 }

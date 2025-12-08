@@ -35,6 +35,10 @@ class CalendarApp {
         this.images = [];
 
         this.visibleCalendars = new Set();
+
+        // Simple history stack for undo (Ctrl+Z)
+        this.history = [];
+        this.historyLimit = 20;
     }
 
     async init() {
@@ -63,7 +67,7 @@ class CalendarApp {
         this.ui.renderCalendars(this.calendars, this.visibleCalendars);
 
         // Mark "Day" view button active by default
-        const dayBtn = this.ui.elements.viewSelector.querySelector('button[data-view="timeGridDay"]');
+        const dayBtn = this.ui.elements.viewSelector.querySelector('button[data-view="resourceTimeGridDay"]');
         if (dayBtn) {
             this.ui.setActiveViewButton(dayBtn);
         }
@@ -75,20 +79,79 @@ class CalendarApp {
     }
 
     /* =======================
+       Helpers
+    ======================= */
+
+    getResources() {
+        // One resource (column) per calendar
+        return this.calendars.map(cal => ({
+            id: cal.name,
+            title: cal.name
+        }));
+    }
+
+    getTimeStripWindow() {
+        // Visible window for right time strip: from now-1h to now+5h, clamped to [0, 24h]
+        const now = new Date();
+        const minutesNow = now.getHours() * 60 + now.getMinutes();
+        let start = minutesNow - 60;
+        let end = minutesNow + 5 * 60;
+        if (start < 0) start = 0;
+        if (end > 24 * 60) end = 24 * 60;
+        return { startMinutes: start, endMinutes: end };
+    }
+
+    getScrollTimeString() {
+        // For day view scrollTime, align with start of the same window
+        const { startMinutes } = this.getTimeStripWindow();
+        const h = Math.floor(startMinutes / 60);
+        const m = startMinutes % 60;
+        const hh = h.toString().padStart(2, '0');
+        const mm = m.toString().padStart(2, '0');
+        return `${hh}:${mm}:00`;
+    }
+
+    pushHistory() {
+        // Save a snapshot of events before a change
+        const snapshot = JSON.stringify(this.events);
+        this.history.push(snapshot);
+        if (this.history.length > this.historyLimit) {
+            this.history.shift();
+        }
+    }
+
+    async undoLastAction() {
+        if (!this.history.length) return;
+        const snapshot = this.history.pop();
+        this.events = JSON.parse(snapshot);
+
+        // Replace events in DB with snapshot
+        await this.db.clear('events');
+        for (const ev of this.events) {
+            await this.db.save('events', ev);
+        }
+        this.refreshCalendarEvents();
+    }
+
+    /* =======================
        Calendar & views
     ======================= */
 
     initFullCalendar() {
         const calendarEl = this.ui.elements.calendarEl;
         const now = new Date();
+        const scrollTime = this.getScrollTimeString();
 
         this.fullCalendar = new FullCalendar.Calendar(calendarEl, {
-            initialView: 'timeGridDay',
+            // One column per calendar (resource)
+            initialView: 'resourceTimeGridDay',
+            resources: this.getResources(),
             initialDate: now,
             height: '100%',
             nowIndicator: true,
-            slotMinTime: '06:00:00',
-            slotMaxTime: '22:00:00',
+            slotMinTime: '00:00:00',
+            slotMaxTime: '24:00:00',
+            scrollTime,
             headerToolbar: {
                 left: 'prev,next today',
                 center: 'title',
@@ -104,12 +167,12 @@ class CalendarApp {
                     this.ui.elements.eventOverlay.classList.remove('hidden');
                 }
             },
-            // Click on day cells in month view -> go to that day
+            // Click on day cells in other views (e.g. month) -> go to that day
             dateClick: (info) => {
                 const vType = this.fullCalendar.view.type;
                 if (vType.startsWith('dayGrid')) {
-                    this.fullCalendar.changeView('timeGridDay', info.date);
-                    const dayBtn = this.ui.elements.viewSelector.querySelector('button[data-view="timeGridDay"]');
+                    this.fullCalendar.changeView('resourceTimeGridDay', info.date);
+                    const dayBtn = this.ui.elements.viewSelector.querySelector('button[data-view="resourceTimeGridDay"]');
                     if (dayBtn) {
                         this.ui.setActiveViewButton(dayBtn);
                     }
@@ -118,27 +181,34 @@ class CalendarApp {
             // Drag-select an empty region on the calendar -> create event with start/end
             select: (info) => {
                 const vType = this.fullCalendar.view.type;
-                // We only use range-based time selection in timeGrid views
-                if (vType.startsWith('timeGrid')) {
-                    this.openEventCreationFromRange(info.start, info.end);
+                if (vType.includes('timeGrid')) {
+                    this.openEventCreationFromRange(info.start, info.end, info.resource ? info.resource.id : null);
                 }
             },
             eventDrop: async (info) => {
+                this.pushHistory();
                 const ev = this.events.find(e => e.id === info.event.id);
                 if (ev) {
                     ev.start = info.event.start.toISOString();
                     ev.end = info.event.end ? info.event.end.toISOString() : ev.end;
+                    // If moved to another resource/column, update calendar field
+                    if (info.newResource) {
+                        ev.calendar = info.newResource.id;
+                    }
                     ev.updatedAt = Date.now();
                     await this.db.save('events', ev);
+                    this.refreshCalendarEvents();
                 }
             },
             eventResize: async (info) => {
+                this.pushHistory();
                 const ev = this.events.find(e => e.id === info.event.id);
                 if (ev) {
                     ev.start = info.event.start.toISOString();
                     ev.end = info.event.end ? info.event.end.toISOString() : ev.end;
                     ev.updatedAt = Date.now();
                     await this.db.save('events', ev);
+                    this.refreshCalendarEvents();
                 }
             }
         });
@@ -149,8 +219,8 @@ class CalendarApp {
 
     changeView(view) {
         if (!this.fullCalendar) return;
-        if (view === 'hour') {
-            this.fullCalendar.changeView('timeGridDay');
+        if (view === 'resourceTimeGridDay') {
+            this.fullCalendar.changeView('resourceTimeGridDay');
         } else {
             this.fullCalendar.changeView(view);
         }
@@ -171,9 +241,13 @@ class CalendarApp {
                 title: ev.name,
                 start: ev.start,
                 end: ev.end,
+                resourceId: ev.calendar, // put in the right calendar column
                 extendedProps: { calendar: ev.calendar }
             });
         });
+
+        // Also keep resources in sync with calendars
+        this.fullCalendar.setOption('resources', this.getResources());
     }
 
     /* =======================
@@ -230,6 +304,8 @@ class CalendarApp {
 
         const startISO = new Date(date + 'T' + startTime + ':00').toISOString();
         const endISO = new Date(date + 'T' + endTime + ':00').toISOString();
+
+        this.pushHistory();
 
         let eventObj;
         if (id) {
@@ -333,7 +409,7 @@ class CalendarApp {
      * Called when user click-drags on empty time slots in the calendar.
      * Start = press position, End = release position.
      */
-    openEventCreationFromRange(start, end) {
+    openEventCreationFromRange(start, end, calendarName) {
         const year = start.getFullYear();
         const month = (start.getMonth() + 1).toString().padStart(2, '0');
         const day = start.getDate().toString().padStart(2, '0');
@@ -347,7 +423,7 @@ class CalendarApp {
         const startTimeStr = `${sh}:${sm}`;
         const endTimeStr = `${eh}:${em}`;
 
-        const defaultCalendar = this.calendars[0]?.name || 'Main';
+        const defaultCalendar = calendarName || this.calendars[0]?.name || 'Main';
 
         this.ui.populateEventForm({
             id: '',
