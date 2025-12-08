@@ -424,9 +424,56 @@ class CalendarApp {
         const calendars = this.calendarService.getAll();
         const images = await this.imageService.load(); // Reload to get current state if needed
 
-        const success = await this.megaSync.sync(events, calendars, images);
-        if (success) {
+        const syncedData = await this.megaSync.sync(events, calendars, images);
+
+        if (syncedData) {
+            // Update local state with merged data
+            if (syncedData.events) {
+                // Clear existing and add merged events
+                // Ideally we update specifically, but clearing and re-adding to DB ensures consistency
+                // But we must respect the service implementation.
+                // EventService uses an array and writes to DB individually on save.
+                // We should probably expose a "setAll" or iterate.
+
+                // Let's implement a batch update in services or just iterate
+                // For now, simple iteration.
+                // Ideally services should support bulk update.
+                this.eventService.events = syncedData.events;
+                await this.db.clear('events');
+                for (const ev of syncedData.events) {
+                    await this.db.save('events', ev);
+                }
+            }
+
+            if (syncedData.calendars) {
+                this.calendarService.calendars = syncedData.calendars;
+                 // Maintain visibility set
+                syncedData.calendars.forEach(cal => {
+                    if (cal.isVisible !== false) this.calendarService.visibleCalendars.add(cal.name);
+                    else this.calendarService.visibleCalendars.delete(cal.name);
+                });
+
+                await this.db.clear('calendars');
+                for (const cal of syncedData.calendars) {
+                    await this.db.save('calendars', cal);
+                }
+            }
+
+            if (syncedData.images) {
+                this.imageService.images = syncedData.images;
+                await this.db.clear('images');
+                for (const img of syncedData.images) {
+                    await this.db.save('images', img);
+                }
+            }
+
             this.ui.showToast('Sync complete!', 'success');
+
+            // Refresh UI
+            this.ui.renderCalendars(this.calendarService.getAll(), this.calendarService.getVisible());
+            this.refreshCalendarResources();
+            this.refreshCalendarEvents();
+
         } else {
             this.ui.showToast('Sync failed.', 'error');
         }
