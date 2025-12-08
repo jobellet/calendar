@@ -9,7 +9,24 @@ class UI {
             closeImagePanelBtn: document.getElementById('close-image-panel-btn'),
             imageManagementPanel: document.getElementById('image-management-panel'),
             calendarEl: document.getElementById('calendar'),
-            // Event form
+            // right sidebar hover area
+            rightSidebar: document.getElementById('right-sidebar'),
+            timeHoverContainer: document.getElementById('time-hover-container'),
+            timeHoverIndicator: document.getElementById('time-hover-indicator'),
+            // Image management controls
+            imgCalendarSelect: document.getElementById('img-calendar-select'),
+            imgCalendarFile: document.getElementById('img-calendar-file'),
+            imgCalendarSaveBtn: document.getElementById('img-calendar-save-btn'),
+            imgCategoryName: document.getElementById('img-category-name'),
+            imgCategoryScope: document.getElementById('img-category-scope'),
+            imgCategoryFile: document.getElementById('img-category-file'),
+            imgCategorySaveBtn: document.getElementById('img-category-save-btn'),
+            // Login overlay
+            loginOverlay: document.getElementById('login-overlay'),
+            loginForm: document.getElementById('login-form'),
+            loginCancelBtn: document.getElementById('login-cancel-btn'),
+            // Event overlay + form
+            eventOverlay: document.getElementById('event-overlay'),
             eventForm: document.getElementById('event-form'),
             eventFormTitle: document.getElementById('event-form-title'),
             eventId: document.getElementById('event-id'),
@@ -20,18 +37,6 @@ class UI {
             eventEndTime: document.getElementById('event-end-time'),
             eventRecurrence: document.getElementById('event-recurrence'),
             eventResetBtn: document.getElementById('event-reset-btn'),
-            // Image management controls
-            imgCalendarSelect: document.getElementById('img-calendar-select'),
-            imgCalendarFile: document.getElementById('img-calendar-file'),
-            imgCalendarSaveBtn: document.getElementById('img-calendar-save-btn'),
-            imgCategoryName: document.getElementById('img-category-name'),
-            imgCategoryScope: document.getElementById('img-category-scope'),
-            imgCategoryFile: document.getElementById('img-category-file'),
-            imgCategorySaveBtn: document.getElementById('img-category-save-btn'),
-            // Login overlay (not wired yet)
-            loginOverlay: document.getElementById('login-overlay'),
-            loginForm: document.getElementById('login-form'),
-            loginCancelBtn: document.getElementById('login-cancel-btn'),
         };
     }
 
@@ -50,6 +55,32 @@ class UI {
             }
         });
 
+        // Sync button -> open login overlay
+        this.elements.syncBtn.addEventListener('click', () => {
+            if (this.elements.loginOverlay) {
+                this.elements.loginOverlay.classList.remove('hidden');
+            }
+        });
+
+        // Login cancel
+        if (this.elements.loginCancelBtn) {
+            this.elements.loginCancelBtn.addEventListener('click', () => {
+                this.elements.loginOverlay.classList.add('hidden');
+            });
+        }
+
+        // Login submit (just closes for now)
+        if (this.elements.loginForm) {
+            this.elements.loginForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const email = document.getElementById('login-email').value;
+                const password = document.getElementById('login-password').value;
+                // later: this.app.megaSync.login(email, password);
+                this.elements.loginOverlay.classList.add('hidden');
+                this.app.setOnlineStatus(true);
+            });
+        }
+
         // Add calendar
         this.elements.addCalendarBtn.addEventListener('click', () => {
             const name = window.prompt('New calendar name:');
@@ -58,14 +89,15 @@ class UI {
             }
         });
 
-        // Event form submit
+        // Event form submit (overlay)
         this.elements.eventForm.addEventListener('submit', (e) => {
             e.preventDefault();
             this.app.saveEventFromForm();
+            this.elements.eventOverlay.classList.add('hidden');
         });
 
         this.elements.eventResetBtn.addEventListener('click', () => {
-            this.clearEventForm();
+            this.elements.eventOverlay.classList.add('hidden');
         });
 
         // Image management panel
@@ -98,6 +130,44 @@ class UI {
             const dataUrl = await this.readFileAsDataURL(file);
             this.app.saveCategoryImage(scope, category, dataUrl);
         });
+
+        // Right sidebar hover / click -> choose time
+        if (this.elements.timeHoverContainer) {
+            const container = this.elements.timeHoverContainer;
+            const indicator = this.elements.timeHoverIndicator;
+
+            const updateIndicator = (clientY) => {
+                const rect = container.getBoundingClientRect();
+                const y = Math.min(Math.max(clientY - rect.top, 0), rect.height);
+                const ratio = rect.height > 0 ? (y / rect.height) : 0;
+                const totalMinutes = Math.round(ratio * 24 * 60);
+                const hour = Math.floor(totalMinutes / 60);
+                const minute = totalMinutes % 60;
+                const hh = hour.toString().padStart(2, '0');
+                const mm = minute.toString().padStart(2, '0');
+                indicator.textContent = `${hh}:${mm}`;
+                indicator.style.top = `${y - 8}px`;
+            };
+
+            container.addEventListener('mousemove', (e) => {
+                updateIndicator(e.clientY);
+            });
+
+            container.addEventListener('mouseleave', () => {
+                indicator.textContent = 'Move here to choose a time';
+                indicator.style.top = '4px';
+            });
+
+            container.addEventListener('click', (e) => {
+                const rect = container.getBoundingClientRect();
+                const y = Math.min(Math.max(e.clientY - rect.top, 0), rect.height);
+                const ratio = rect.height > 0 ? (y / rect.height) : 0;
+                const totalMinutes = Math.round(ratio * 24 * 60);
+                const hour = Math.floor(totalMinutes / 60);
+                const minute = totalMinutes % 60;
+                this.app.openEventCreationAt(hour, minute);
+            });
+        }
     }
 
     setActiveViewButton(activeBtn) {
@@ -113,10 +183,10 @@ class UI {
             const wrapper = document.createElement('div');
             wrapper.className = 'calendar-item';
             const id = `cal-${calendar.name}`;
-            wrapper.innerHTML = \`
-                <input type="checkbox" id="\${id}" data-calendar="\${calendar.name}" \${visibleCalendars.has(calendar.name) ? 'checked' : ''}>
-                <label for="\${id}">\${calendar.name}</label>
-            \`;
+            wrapper.innerHTML = `
+                <input type="checkbox" id="${id}" data-calendar="${calendar.name}" ${visibleCalendars.has(calendar.name) ? 'checked' : ''}>
+                <label for="${id}">${calendar.name}</label>
+            `;
             this.elements.calendarsList.appendChild(wrapper);
         });
 

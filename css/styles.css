@@ -12,7 +12,7 @@
     --border-color: #ddd;
     --text-color: #333;
     --sidebar-width: 260px;
-    --rightbar-width: 280px;
+    --rightbar-width: 220px;
     --panel-bg: #ffffff;
 }
 
@@ -149,64 +149,63 @@ body {
     height: 100%;
 }
 
-/* Right sidebar */
+/* Right sidebar: time picker */
 #right-sidebar {
     background: #fff;
     border-left: 1px solid var(--border-color);
-    padding: 12px;
+    padding: 8px;
     display: flex;
     flex-direction: column;
+    justify-content: center;
+    align-items: stretch;
 }
 
-#right-sidebar h3 {
-    margin-top: 0;
-    margin-bottom: 8px;
-}
-
-#event-form {
+#time-hover-container {
+    position: relative;
+    flex: 1;
+    border-radius: 6px;
+    border: 1px dashed var(--border-color);
+    background: #fafafa;
+    overflow: hidden;
+    cursor: crosshair;
     display: flex;
     flex-direction: column;
-    gap: 8px;
-    font-size: 13px;
+    justify-content: flex-start;
+    align-items: stretch;
 }
 
-#event-form label {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
+#time-hover-indicator {
+    position: absolute;
+    left: 0;
+    right: 0;
+    padding-left: 6px;
+    font-size: 12px;
+    color: #555;
+    pointer-events: none;
 }
 
-#event-form input,
-#event-form select {
-    padding: 4px 6px;
-    border-radius: 4px;
-    border: 1px solid var(--border-color);
-    font-size: 13px;
-}
-
-#event-form button {
-    margin-top: 4px;
-    padding: 6px 8px;
-    border-radius: 4px;
-    border: none;
-    cursor: pointer;
-    font-size: 13px;
-}
-
-#event-save-btn {
+#time-hover-line {
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 1px;
     background: var(--primary-color);
-    color: #fff;
+    pointer-events: none;
 }
 
-#event-reset-btn {
-    background: #eee;
+#time-hover-help {
+    margin-top: auto;
+    padding: 6px;
+    font-size: 11px;
+    color: #777;
 }
 
-/* Image management panel */
+/* Generic overlays */
 .hidden {
     display: none !important;
 }
 
+/* Image management panel */
 #image-management-panel {
     position: fixed;
     inset: 0;
@@ -330,6 +329,67 @@ body {
 }
 
 #login-cancel-btn {
+    background: #eee;
+}
+
+/* Event creation overlay */
+#event-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1200;
+}
+
+#event-box {
+    background: #fff;
+    padding: 16px;
+    border-radius: 8px;
+    width: min(360px, 95vw);
+}
+
+#event-box h2 {
+    margin-top: 0;
+}
+
+#event-form {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    font-size: 13px;
+}
+
+#event-form label {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+#event-form input,
+#event-form select {
+    padding: 4px 6px;
+    border-radius: 4px;
+    border: 1px solid var(--border-color);
+    font-size: 13px;
+}
+
+#event-form button {
+    margin-top: 4px;
+    padding: 6px 8px;
+    border-radius: 4px;
+    border: none;
+    cursor: pointer;
+    font-size: 13px;
+}
+
+#event-save-btn {
+    background: var(--primary-color);
+    color: #fff;
+}
+
+#event-reset-btn {
     background: #eee;
 }
 

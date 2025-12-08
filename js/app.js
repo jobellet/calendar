@@ -4,7 +4,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 /**
- * Event model (logical, not enforced by TS here):
+ * Event model (logical):
  * {
  *   id: string,                  // hash of calendar + name + original start
  *   calendar: string,
@@ -52,7 +52,7 @@ class CalendarApp {
             this.calendars.push(mainCal);
         }
 
-        // By default all calendars visible
+        // All calendars visible by default unless marked otherwise
         this.calendars.forEach(cal => {
             if (cal.isVisible !== false) {
                 this.visibleCalendars.add(cal.name);
@@ -61,9 +61,16 @@ class CalendarApp {
 
         this.ui.init(this);
         this.ui.renderCalendars(this.calendars, this.visibleCalendars);
+
+        // Mark "Day" view button active by default
+        const dayBtn = this.ui.elements.viewSelector.querySelector('button[data-view="timeGridDay"]');
+        if (dayBtn) {
+            this.ui.setActiveViewButton(dayBtn);
+        }
+
         this.initFullCalendar();
 
-        // Mark offline by default (no real MEGA sync yet)
+        // Offline by default (no real MEGA sync yet)
         this.ui.setSyncStatus(false);
     }
 
@@ -73,34 +80,38 @@ class CalendarApp {
 
     initFullCalendar() {
         const calendarEl = this.ui.elements.calendarEl;
+        const now = new Date();
 
         this.fullCalendar = new FullCalendar.Calendar(calendarEl, {
-            initialView: 'dayGridMonth',
+            initialView: 'timeGridDay',
+            initialDate: now,
+            height: '100%',
+            nowIndicator: true,
+            slotMinTime: '06:00:00',
+            slotMaxTime: '22:00:00',
             headerToolbar: {
                 left: 'prev,next today',
                 center: 'title',
                 right: ''
             },
-            selectable: true,
             editable: true,
+            selectable: true,
             eventClick: (info) => {
                 const event = this.events.find(e => e.id === info.event.id);
                 if (event) {
                     this.ui.populateEventForm(event);
+                    this.ui.elements.eventOverlay.classList.remove('hidden');
                 }
             },
             dateClick: (info) => {
-                // Open form in create mode with this date pre-filled
-                const defaultCalendar = this.calendars[0]?.name || 'Main';
-                this.ui.populateEventForm({
-                    calendar: defaultCalendar,
-                    start: info.dateStr + 'T09:00:00',
-                    end: info.dateStr + 'T10:00:00',
-                    recurrence: { type: 'none' }
-                });
+                // When clicking on a day in other views, go to that day in day view
+                this.fullCalendar.changeView('timeGridDay', info.date);
+                const dayBtn = this.ui.elements.viewSelector.querySelector('button[data-view="timeGridDay"]');
+                if (dayBtn) {
+                    this.ui.setActiveViewButton(dayBtn);
+                }
             },
             eventDrop: async (info) => {
-                // Drag & drop update
                 const ev = this.events.find(e => e.id === info.event.id);
                 if (ev) {
                     ev.start = info.event.start.toISOString();
@@ -126,9 +137,7 @@ class CalendarApp {
 
     changeView(view) {
         if (!this.fullCalendar) return;
-
         if (view === 'hour') {
-            // Simple approximation: use timeGridDay
             this.fullCalendar.changeView('timeGridDay');
         } else {
             this.fullCalendar.changeView(view);
@@ -178,7 +187,6 @@ class CalendarApp {
             this.visibleCalendars.delete(calendarName);
         }
 
-        // Persist visibility in calendar object
         const cal = this.calendars.find(c => c.name === calendarName);
         if (cal) {
             cal.isVisible = isVisible;
@@ -216,7 +224,6 @@ class CalendarApp {
             // Update existing
             eventObj = this.events.find(e => e.id === id);
             if (!eventObj) {
-                // Should not happen, but handle gracefully
                 eventObj = this.createEmptyEvent();
                 eventObj.id = id;
                 this.events.push(eventObj);
@@ -241,7 +248,6 @@ class CalendarApp {
 
         await this.db.save('events', eventObj);
         this.refreshCalendarEvents();
-        this.ui.populateEventForm(null);
     }
 
     createEmptyEvent() {
@@ -260,7 +266,6 @@ class CalendarApp {
 
     generateEventId(calendar, name, startISO) {
         const base = calendar + '|' + name + '|' + startISO;
-        // Simple hash
         let hash = 0;
         for (let i = 0; i < base.length; i++) {
             hash = ((hash << 5) - hash) + base.charCodeAt(i);
@@ -270,11 +275,46 @@ class CalendarApp {
     }
 
     resolveConflict(localEvent, remoteEvent) {
-        // Last-edit-wins based on updatedAt
         if ((remoteEvent.updatedAt || 0) > (localEvent.updatedAt || 0)) {
             return remoteEvent;
         }
         return localEvent;
+    }
+
+    openEventCreationAt(hour, minute) {
+        const baseDate = this.fullCalendar ? this.fullCalendar.getDate() : new Date();
+        const year = baseDate.getFullYear();
+        const month = (baseDate.getMonth() + 1).toString().padStart(2, '0');
+        const day = baseDate.getDate().toString().padStart(2, '0');
+        const hh = hour.toString().padStart(2, '0');
+        const mm = minute.toString().padStart(2, '0');
+
+        const startDateStr = `${year}-${month}-${day}`;
+        const startTimeStr = `${hh}:${mm}`;
+
+        // Default duration: 30 minutes
+        const totalMinutes = hour * 60 + minute + 30;
+        const endHour = Math.floor(totalMinutes / 60) % 24;
+        const endMinute = totalMinutes % 60;
+        const ehh = endHour.toString().padStart(2, '0');
+        const emm = endMinute.toString().padStart(2, '0');
+        const endTimeStr = `${ehh}:${emm}`;
+
+        const defaultCalendar = this.calendars[0]?.name || 'Main';
+
+        this.ui.populateEventForm({
+            id: '',
+            calendar: defaultCalendar,
+            name: '',
+            start: `${startDateStr}T${startTimeStr}:00`,
+            end: `${startDateStr}T${endTimeStr}:00`,
+            recurrence: { type: 'none' }
+        });
+        this.ui.elements.eventOverlay.classList.remove('hidden');
+    }
+
+    setOnlineStatus(online) {
+        this.ui.setSyncStatus(online);
     }
 
     /* =======================
@@ -293,7 +333,6 @@ class CalendarApp {
         };
         await this.db.save('images', imageEntry);
 
-        // Keep in local cache
         const existingIndex = this.images.findIndex(img => img.id === id);
         if (existingIndex >= 0) {
             this.images[existingIndex] = imageEntry;
@@ -307,7 +346,7 @@ class CalendarApp {
         const id = `category:${scope}:${normalizedCat}`;
         const imageEntry = {
             id,
-            calendar: scope, // "all" or specific calendar
+            calendar: scope,
             category: normalizedCat,
             url: dataUrl,
             createdAt: Date.now(),
@@ -322,7 +361,6 @@ class CalendarApp {
             this.images.push(imageEntry);
         }
 
-        // Optionally flag existing events of that category as having an image
         this.events
             .filter(ev => ev.name.toLowerCase() === normalizedCat &&
                 (scope === 'all' || ev.calendar === scope))

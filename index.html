@@ -19,7 +19,6 @@
                 <button type="button" data-view="dayGridMonth">Month</button>
                 <button type="button" data-view="timeGridWeek">Week</button>
                 <button type="button" data-view="timeGridDay">Day</button>
-                <button type="button" data-view="hour">Hour</button>
             </div>
 
             <div id="calendars-section">
@@ -38,50 +37,12 @@
             <div id="calendar"></div>
         </main>
 
-        <!-- Right Sidebar (Event Form) -->
+        <!-- Right Sidebar: time picker area -->
         <aside id="right-sidebar">
-            <h3 id="event-form-title">Create event</h3>
-            <form id="event-form">
-                <input type="hidden" id="event-id">
-
-                <label>
-                    Calendar
-                    <select id="event-calendar"></select>
-                </label>
-
-                <label>
-                    Name / Category
-                    <input type="text" id="event-name" required>
-                </label>
-
-                <label>
-                    Date
-                    <input type="date" id="event-date" required>
-                </label>
-
-                <label>
-                    Start time
-                    <input type="time" id="event-start-time" required>
-                </label>
-
-                <label>
-                    End time
-                    <input type="time" id="event-end-time" required>
-                </label>
-
-                <label>
-                    Recurrence
-                    <select id="event-recurrence">
-                        <option value="none">None</option>
-                        <option value="daily">Daily</option>
-                        <option value="weekly">Weekly</option>
-                        <option value="biweekly">Every 2 weeks</option>
-                    </select>
-                </label>
-
-                <button type="submit" id="event-save-btn">Save</button>
-                <button type="button" id="event-reset-btn">Clear</button>
-            </form>
+            <div id="time-hover-container">
+                <div id="time-hover-indicator">Move here to choose a time</div>
+                <div id="time-hover-help">Move the mouse up/down, then click to create an event at that time.</div>
+            </div>
         </aside>
     </div>
 
@@ -125,7 +86,7 @@
         </div>
     </div>
 
-    <!-- Login Overlay (for future MEGA auth) -->
+    <!-- Login Overlay -->
     <div id="login-overlay" class="hidden">
         <div id="login-box">
             <h2>Login to MEGA</h2>
@@ -140,6 +101,54 @@
                 </label>
                 <button type="submit">Login</button>
                 <button type="button" id="login-cancel-btn">Cancel</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Event creation Overlay -->
+    <div id="event-overlay" class="hidden">
+        <div id="event-box">
+            <h2 id="event-form-title">Create event</h2>
+            <form id="event-form">
+                <input type="hidden" id="event-id">
+
+                <label>
+                    Calendar
+                    <select id="event-calendar"></select>
+                </label>
+
+                <label>
+                    Name / Category
+                    <input type="text" id="event-name" required>
+                </label>
+
+                <label>
+                    Date
+                    <input type="date" id="event-date" required>
+                </label>
+
+                <label>
+                    Start time
+                    <input type="time" id="event-start-time" required>
+                </label>
+
+                <label>
+                    End time
+                    <input type="time" id="event-end-time" required>
+                </label>
+
+                <label>
+                    Recurrence
+                    <select id="event-recurrence">
+                        <option value="none">None</option>
+                        <option value="daily">Daily</option>
+                        <option value="weekly">Weekly</option>
+                        <option value="biweekly">Every 2 weeks</option>
+                    </select>
+                </label>
+
+                <button type="submit" id="event-save-btn">Save</button>
+                <button type="button" id="event-reset-btn">Cancel</button>
             </form>
         </div>
     </div>
