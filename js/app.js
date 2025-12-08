@@ -11,6 +11,7 @@ class CalendarApp {
         this.imageService = new ImageService(this.db);
         this.calendarService = new CalendarService(this.db);
         this.ui = new UI();
+        this.megaSync = new MegaSync();
         this.fullCalendar = null;
     }
 
@@ -37,8 +38,13 @@ class CalendarApp {
 
     initFullCalendar() {
         const calendarEl = this.ui.elements.calendarEl;
+        const resources = Array.from(this.calendarService.getVisible()).map(name => ({ id: name, title: name }));
+
         this.fullCalendar = new FullCalendar.Calendar(calendarEl, {
-            initialView: 'timeGridDay',
+            schedulerLicenseKey: 'GPL-My-Project-Is-Open-Source',
+            initialView: 'resourceTimeGridDay',
+            resources: resources,
+            resourceAreaHeaderContent: 'Calendars',
             initialDate: new Date(),
             height: '100%',
             nowIndicator: true,
@@ -54,6 +60,7 @@ class CalendarApp {
             selectable: true,
             selectMirror: true,
             eventContent: this.renderEventContent.bind(this),
+            resourceLabelContent: this.renderResourceLabel.bind(this),
             eventClick: this.handleEventClick.bind(this),
             dateClick: this.handleDateClick.bind(this),
             select: this.handleSelect.bind(this),
@@ -63,6 +70,29 @@ class CalendarApp {
 
         this.refreshCalendarEvents();
         this.fullCalendar.render();
+    }
+
+    refreshCalendarResources() {
+        if (!this.fullCalendar) return;
+
+        const visibleCalendars = this.calendarService.getVisible();
+        const currentResources = this.fullCalendar.getResources();
+        const currentResourceIds = new Set(currentResources.map(r => r.id));
+
+        // Add new resources
+        visibleCalendars.forEach(calName => {
+            if (!currentResourceIds.has(calName)) {
+                this.fullCalendar.addResource({ id: calName, title: calName });
+            }
+        });
+
+        // Remove old resources
+        currentResourceIds.forEach(resId => {
+            if (!visibleCalendars.has(resId)) {
+                const resource = this.fullCalendar.getResourceById(resId);
+                if (resource) resource.remove();
+            }
+        });
     }
 
     refreshCalendarEvents() {
@@ -85,20 +115,47 @@ class CalendarApp {
         wrapper.className = 'custom-event-content';
 
         if (imageEntry?.url) {
+            wrapper.style.backgroundColor = imageEntry.averageColor; // Fill background for event
             const img = document.createElement('img');
             img.src = imageEntry.url;
             img.alt = info.event.title;
+            img.style.objectFit = 'contain'; // Maintain aspect ratio
             img.style.objectPosition = `${imageEntry.cropX}% ${imageEntry.cropY}%`;
-            img.style.backgroundColor = imageEntry.averageColor;
             wrapper.appendChild(img);
+        } else {
+            const titleEl = document.createElement('div');
+            titleEl.className = 'event-title';
+            titleEl.textContent = info.event.title;
+            wrapper.appendChild(titleEl);
         }
 
-        const titleEl = document.createElement('div');
-        titleEl.className = 'event-title';
-        titleEl.textContent = info.event.title;
-        wrapper.appendChild(titleEl);
-
         return { domNodes: [wrapper] };
+    }
+
+    renderResourceLabel(info) {
+        // info.resource.id is the calendar name
+        const calendarName = info.resource.id;
+        // We need to look up if there is an image for this calendar
+        // Since we don't have a direct method, we can iterate
+        const image = this.imageService.images.find(img =>
+            !img.category && img.calendar === calendarName
+        );
+
+        if (image) {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'resource-header-content';
+            wrapper.style.backgroundColor = image.averageColor; // Fill background
+
+            const img = document.createElement('img');
+            img.src = image.url;
+            img.style.objectFit = 'contain'; // Maintain aspect ratio
+            img.style.objectPosition = `${image.cropX}% ${image.cropY}%`;
+            img.title = calendarName;
+            wrapper.appendChild(img);
+            return { domNodes: [wrapper] };
+        }
+
+        return { html: `<span>${calendarName}</span>` };
     }
 
     // #region FullCalendar Event Handlers
@@ -119,8 +176,14 @@ class CalendarApp {
     }
 
     handleSelect(info) {
-        if (this.fullCalendar.view.type.includes('timeGrid')) {
-            this.openEventCreationFromRange(info.start, info.end);
+        // Ensure we handle selection correctly
+        if (this.fullCalendar) {
+            const calendarName = info.resource ? info.resource.id :
+                (this.calendarService.getAll()[0]?.name || 'Main');
+
+            // If the selection is just a click (start == end), ignore it (dateClick handles it)
+            // But FullCalendar 'select' usually implies a range.
+            this.openEventCreationFromRange(info.start, info.end, calendarName);
         }
     }
 
@@ -135,6 +198,11 @@ class CalendarApp {
             this.refreshCalendarEvents();
         }
     }
+
+    changeView(view) {
+        const newView = view === 'timeGridDay' ? 'resourceTimeGridDay' : view;
+        this.fullCalendar.changeView(newView);
+    }
     // #endregion
 
     // #region UI-triggered Actions
@@ -142,12 +210,14 @@ class CalendarApp {
         const newCal = await this.calendarService.add(name);
         if (newCal) {
             this.ui.renderCalendars(this.calendarService.getAll(), this.calendarService.getVisible());
+            this.refreshCalendarResources();
             this.refreshCalendarEvents();
         }
     }
 
     async setCalendarVisibility(calendarName, isVisible) {
         await this.calendarService.setVisibility(calendarName, isVisible);
+        this.refreshCalendarResources();
         this.refreshCalendarEvents();
     }
 
@@ -166,6 +236,7 @@ class CalendarApp {
 
     async saveCalendarImage(calendarName, dataUrl, crop) {
         await this.imageService.saveCalendarImage(calendarName, dataUrl, crop);
+        this.refreshCalendarResources(); // Re-render headers
         this.refreshCalendarEvents();
     }
 
@@ -192,6 +263,7 @@ class CalendarApp {
             id: ev.id,
             title: ev.name,
             editable: !isRecurring,
+            resourceId: ev.calendar,
             extendedProps: { calendar: ev.calendar }
         };
 
@@ -221,11 +293,8 @@ class CalendarApp {
     }
 
     getTimeStripWindow() {
-        const now = new Date();
-        const minutesNow = now.getHours() * 60 + now.getMinutes();
-        let start = Math.max(0, minutesNow - 60);
-        let end = Math.min(24 * 60, minutesNow + 5 * 60);
-        return { startMinutes: start, endMinutes: end };
+        // Return full day window to align with 00:00-24:00
+        return { startMinutes: 0, endMinutes: 24 * 60 };
     }
 
     openEventCreationAt(hour, minute) {
@@ -238,8 +307,8 @@ class CalendarApp {
         this.openEventCreationFromRange(startDate, endDate);
     }
 
-    openEventCreationFromRange(start, end) {
-        const defaultCalendar = this.calendarService.getAll()[0]?.name || 'Main';
+    openEventCreationFromRange(start, end, calendarName) {
+        const defaultCalendar = calendarName || this.calendarService.getAll()[0]?.name || 'Main';
         const eventData = {
             id: '',
             calendar: defaultCalendar,
@@ -254,6 +323,32 @@ class CalendarApp {
 
     setOnlineStatus(online) {
         this.ui.setSyncStatus(online);
+    }
+
+    async loginToMega(email, password) {
+        const result = await this.megaSync.login(email, password);
+        if (result.success) {
+            this.setOnlineStatus(true);
+            this.sync();
+        }
+        return result;
+    }
+
+    async sync() {
+        if (!this.megaSync.isLoggedIn()) return;
+
+        this.ui.showToast('Syncing with MEGA...', 'info');
+
+        const events = this.eventService.getAll();
+        const calendars = this.calendarService.getAll();
+        const images = await this.imageService.load(); // Reload to get current state if needed
+
+        const success = await this.megaSync.sync(events, calendars, images);
+        if (success) {
+            this.ui.showToast('Sync complete!', 'success');
+        } else {
+            this.ui.showToast('Sync failed.', 'error');
+        }
     }
     // #endregion
 }

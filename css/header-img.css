@@ -1,0 +1,26 @@
+/* Header content container */
+.resource-header-content {
+    width: 100%;
+    height: 10vh;
+    /* 1/10th of screen height */
+    max-height: 100px;
+    /* Optional sane cap */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+
+.resource-header-content img {
+    width: 100%;
+    height: 100%;
+}
+
+/* Ensure header cells stretch */
+.fc-col-header-cell-cushion {
+    display: block !important;
+    /* Force block to allow height */
+    width: 100%;
+    padding: 0 !important;
+    /* Remove padding to fill space */
+}

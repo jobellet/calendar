@@ -1,223 +1,345 @@
+:root {
+    /* Primary Color - Deep Sky Blue variant */
+    --primary-hue: 215;
+    --primary-sat: 90%;
+    --primary-lig: 55%;
+    --primary-color: hsl(var(--primary-hue), var(--primary-sat), var(--primary-lig));
+    --primary-color-hover: hsl(var(--primary-hue), var(--primary-sat), 45%);
+    --primary-color-light: hsl(var(--primary-hue), 80%, 96%);
+
+    /* Accent & Status Colors */
+    --secondary-color: #00d26a;
+    /* Vibrant Green */
+    --danger-color: #ff4757;
+    /* Vibrant Red */
+    --warning-color: #ffa502;
+    /* Warm Orange */
+
+    /* Glassmorphism Variables */
+    --glass-bg: rgba(255, 255, 255, 0.75);
+    --glass-border: rgba(255, 255, 255, 0.5);
+    --glass-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15);
+    --glass-backdrop: blur(12px);
+
+    /* Neutral Colors */
+    --bg-gradient-start: #f0f2f5;
+    --bg-gradient-end: #dfe4ea;
+    --text-main: #2d3436;
+    --text-muted: #636e72;
+    --border-light: rgba(0, 0, 0, 0.06);
+
+    /* Dimensions */
+    --sidebar-width: 280px;
+    --rightbar-width: 60px;
+    /* Slimmer default for time strip */
+    --header-height: 60px;
+    /* Mobile header */
+
+    /* Fonts */
+    --font-heading: 'Inter', sans-serif;
+    --font-body: 'Inter', sans-serif;
+}
+
+.mobile-header,
+.fab-add-event,
+#sidebar-overlay {
+    display: none;
+}
+
 *,
 *::before,
 *::after {
     box-sizing: border-box;
-}
-
-:root {
-    --primary-hue: 205;
-    --primary-color: hsl(var(--primary-hue), 85%, 45%);
-    --primary-color-light: hsl(var(--primary-hue), 80%, 95%);
-    --secondary-color: #2ecc71;
-    --danger-color: #e74c3c;
-    --bg-light: #f8f9fa;
-    --border-color: #e9ecef;
-    --text-color: #212529;
-    --text-muted: #6c757d;
-    --sidebar-width: 280px;
-    --rightbar-width: 280px;
-    --panel-bg: #ffffff;
-    --font-family-sans-serif: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    -webkit-tap-highlight-color: transparent;
 }
 
 body {
     margin: 0;
-    font-family: var(--font-family-sans-serif);
-    color: var(--text-color);
-    background: var(--bg-light);
+    font-family: var(--font-body);
+    color: var(--text-main);
+    background: linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 100%);
+    background-attachment: fixed;
     height: 100vh;
+    overflow: hidden;
     -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
 }
 
+/* App Layout */
 #app-container {
     display: grid;
     grid-template-columns: var(--sidebar-width) 1fr var(--rightbar-width);
     height: 100vh;
+    overflow: hidden;
+    position: relative;
+    backdrop-filter: blur(50px);
+    /* Subtle global blur for depth if needed */
 }
 
-/* Left sidebar */
+/* Glass Panel Generic Class */
+.glass-panel {
+    background: var(--glass-bg);
+    backdrop-filter: var(--glass-backdrop);
+    -webkit-backdrop-filter: var(--glass-backdrop);
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--glass-shadow);
+}
+
+/* --- Left Sidebar --- */
 #left-sidebar {
-    background: #fff;
-    border-right: 1px solid var(--border-color);
-    padding: 20px;
+    grid-column: 1;
     display: flex;
     flex-direction: column;
-    gap: 24px;
-    box-shadow: 0 0 15px rgba(0,0,0,0.02);
+    gap: 20px;
+    padding: 24px;
+    background: rgba(255, 255, 255, 0.85);
+    /* Slightly more opaque */
+    backdrop-filter: blur(16px);
+    border-right: 1px solid var(--glass-border);
+    z-index: 100;
+    transition: transform 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
 }
 
+/* Mobile Toggle for Sidebar */
+.mobile-menu-toggle {
+    display: none;
+    /* Hidden on desktop */
+}
+
+/* Sync Section */
 #sync-section {
     display: flex;
-    justify-content: flex-start;
+    align-items: center;
+    gap: 12px;
 }
 
 #sync-btn {
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
     border: none;
     cursor: pointer;
-    font-size: 18px;
+    font-size: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.2s, box-shadow 0.2s;
+    background: white;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+#sync-btn:active {
+    transform: scale(0.95);
 }
 
 #sync-btn.status-offline {
-    background: var(--danger-color);
-    color: #fff;
+    color: var(--danger-color);
 }
 
 #sync-btn.status-online {
-    background: var(--secondary-color);
-    color: #fff;
+    color: var(--secondary-color);
 }
 
+/* View Selector */
 #view-selector {
     display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
+    background: rgba(0, 0, 0, 0.04);
+    padding: 4px;
+    border-radius: 12px;
+    gap: 4px;
 }
 
 #view-selector button {
-    flex: 1 1 45%;
+    flex: 1;
     padding: 8px 12px;
-    border-radius: 6px;
-    border: 1px solid var(--border-color);
-    background: #fff;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text-muted);
+    font-weight: 600;
     cursor: pointer;
-    font-size: 14px;
-    font-weight: 500;
-    transition: all 0.2s ease;
-}
-
-#view-selector button:hover {
-    background: var(--primary-color-light);
-    border-color: hsl(var(--primary-hue), 80%, 85%);
+    transition: all 0.2s;
+    font-size: 13px;
 }
 
 #view-selector button.active {
-    background: var(--primary-color);
-    color: #fff;
-    border-color: var(--primary-color);
+    background: white;
+    color: var(--primary-color);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
-#calendars-section h3 {
-    margin: 0 0 6px;
-    font-size: 15px;
-}
-
+/* Calendars List */
 #calendars-section {
     flex: 1;
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    overflow: hidden;
+}
+
+#calendars-section h3 {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    margin-bottom: 12px;
 }
 
 #calendars-list {
     flex: 1;
     overflow-y: auto;
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-    padding: 6px;
-    background: #fafafa;
+    padding-right: 4px;
+    /* Space for scrollbar */
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
 }
 
 .calendar-item {
     display: flex;
     align-items: center;
-    gap: 6px;
-    padding: 4px 2px;
-    font-size: 13px;
+    gap: 10px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.calendar-item:hover {
+    background: rgba(0, 0, 0, 0.03);
+}
+
+.calendar-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    /* color set inline */
+}
+
+/* Buttons */
+button {
+    font-family: var(--font-body);
+}
+
+.btn-primary,
+#add-calendar-btn,
+#open-image-panel-btn {
+    width: 100%;
+    padding: 12px;
+    border-radius: 10px;
+    border: none;
+    background: var(--primary-color);
+    color: white;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.1s;
+    box-shadow: 0 4px 12px rgba(33, 150, 243, 0.3);
+}
+
+.btn-primary:hover,
+#add-calendar-btn:hover,
+#open-image-panel-btn:hover {
+    background: var(--primary-color-hover);
+    transform: translateY(-1px);
+}
+
+.btn-secondary {
+    background: transparent;
+    border: 1px solid var(--border-light);
+    color: var(--text-main);
 }
 
 #add-calendar-btn {
-    margin-top: 6px;
-    padding: 6px 8px;
-    border-radius: 4px;
-    border: 1px dashed var(--border-color);
-    background: #fff;
-    cursor: pointer;
-    font-size: 13px;
+    margin-top: auto;
+    /* Push to bottom of list */
+    background: white;
+    color: var(--primary-color);
+    border: 1px dashed var(--primary-color);
+    box-shadow: none;
 }
 
 #image-management-tab {
-    border-top: 1px solid var(--border-color);
-    padding-top: 8px;
+    margin-top: 20px;
 }
 
-#image-management-tab button {
-    width: 100%;
-    padding: 6px 8px;
-    border-radius: 4px;
-    border: 1px solid var(--border-color);
-    background: #fff;
-    cursor: pointer;
+#open-image-panel-btn {
+    background: linear-gradient(135deg, #FF9A9E 0%, #FECFEF 100%);
+    color: #555;
+    box-shadow: 0 4px 15px rgba(255, 154, 158, 0.4);
 }
 
-/* Main content */
+/* --- Main Content --- */
 #main-content {
-    padding: 8px;
-    overflow: hidden;
+    grid-column: 2;
+    padding: 20px;
+    position: relative;
+    display: flex;
+    flex-direction: column;
 }
 
 #calendar {
-    height: 100%;
+    flex: 1;
+    background: rgba(255, 255, 255, 0.6);
+    backdrop-filter: blur(20px);
+    border-radius: 20px;
+    padding: 16px;
+    box-shadow: var(--glass-shadow);
+    overflow: hidden;
 }
 
-/* Right sidebar */
+/* --- Right Sidebar (Time Strip) --- */
 #right-sidebar {
-    background: #fff;
-    border-left: 1px solid var(--border-color);
-    padding: 20px;
+    grid-column: 3;
+    background: rgba(255, 255, 255, 0.4);
+    backdrop-filter: blur(10px);
+    border-left: 1px solid rgba(255, 255, 255, 0.3);
+    padding: 10px 4px;
     display: flex;
     flex-direction: column;
-    justify-content: center;
-    align-items: stretch;
-    box-shadow: 0 0 15px rgba(0,0,0,0.02);
 }
 
 #time-hover-container {
-    position: relative;
     flex: 1;
-    border-radius: 6px;
-    border: 1px dashed var(--border-color);
-    background: #fafafa;
+    position: relative;
+    border-radius: 20px;
+    background: rgba(255, 255, 255, 0.5);
     overflow: hidden;
     cursor: crosshair;
-    display: flex;
-    flex-direction: column;
-    justify-content: flex-start;
-    align-items: stretch;
 }
 
 #time-hover-indicator {
     position: absolute;
-    left: 0;
-    right: 0;
-    padding-left: 6px;
-    font-size: 12px;
-    color: #555;
+    width: 100%;
+    padding: 4px;
+    text-align: center;
+    background: var(--primary-color);
+    color: white;
+    font-size: 11px;
+    font-weight: bold;
+    border-radius: 4px;
     pointer-events: none;
+    transform: translateY(-50%);
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
 }
 
 #time-hover-help {
-    margin-top: auto;
-    padding: 6px;
-    font-size: 11px;
-    color: #777;
+    display: none;
+    /* Hide for cleaner look, show on hover maybe? */
 }
 
-/* Generic overlays */
+/* --- Modals / Overlays --- */
 .overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0,0,0,0.6);
+    background: rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(8px);
     display: flex;
     align-items: center;
     justify-content: center;
     z-index: 1000;
     opacity: 0;
     visibility: hidden;
-    transition: opacity 0.3s ease, visibility 0.3s ease;
+    transition: all 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
 }
 
 .overlay.visible {
@@ -225,322 +347,359 @@ body {
     visibility: visible;
 }
 
-.overlay .modal-box {
-    transform: scale(0.95);
-    transition: transform 0.3s ease;
+.modal-box {
+    background: white;
+    padding: 30px;
+    border-radius: 24px;
+    width: min(480px, 90vw);
+    max-height: 85vh;
+    overflow-y: auto;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+    transform: scale(0.9) translateY(20px);
+    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .overlay.visible .modal-box {
-    transform: scale(1);
+    transform: scale(1) translateY(0);
 }
 
-.hidden {
-    display: none !important;
+h2 {
+    margin: 0 0 20px 0;
+    font-weight: 700;
+    font-size: 24px;
+    color: var(--text-main);
 }
 
-/* Image management panel */
-#image-management-panel {
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.4);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1000;
-}
-
-#image-management-content {
-    background: var(--panel-bg);
-    border-radius: 12px;
-    padding: 24px;
-    width: min(520px, 95vw);
-    max-height: 90vh;
-    overflow-y: auto;
-    position: relative;
-    box-shadow: 0 10px 25px rgba(0,0,0,0.1);
-}
-
-#image-management-content h2 {
-    margin-top: 0;
-}
-
-#image-management-content section {
-    margin-top: 12px;
-    padding-top: 8px;
-    border-top: 1px solid var(--border-color);
-}
-
-#image-management-content label {
+/* Form Styles */
+form {
     display: flex;
     flex-direction: column;
-    gap: 2px;
-    margin-bottom: 6px;
-    font-size: 13px;
+    gap: 16px;
 }
 
-#image-management-content input,
-#image-management-content select {
-    padding: 4px 6px;
-    border-radius: 4px;
-    border: 1px solid var(--border-color);
-}
-
-#image-management-content button {
-    margin-top: 4px;
-    padding: 6px 8px;
-    border-radius: 4px;
-    border: none;
-    cursor: pointer;
-    background: var(--primary-color);
-    color: #fff;
-    font-size: 13px;
-}
-
-#close-image-panel-btn {
-    position: absolute;
-    top: 8px;
-    right: 8px;
-    width: 28px;
-    height: 28px;
-    border-radius: 50%;
-    border: none;
-    cursor: pointer;
-    background: #eee;
-}
-
-/* Login overlay */
-#login-overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.6);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1100;
-}
-
-#login-box {
-    background: #fff;
-    padding: 24px;
-    border-radius: 12px;
-    width: min(380px, 95vw);
-    box-shadow: 0 10px 25px rgba(0,0,0,0.1);
-}
-
-#login-box h2 {
-    margin-top: 0;
-}
-
-#login-form {
+label {
     display: flex;
     flex-direction: column;
     gap: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-muted);
 }
 
-#login-form label {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
+input,
+select {
+    padding: 12px;
+    border-radius: 10px;
+    border: 1px solid #e0e0e0;
+    background: #f9f9f9;
+    font-family: var(--font-body);
+    font-size: 15px;
+    transition: all 0.2s;
 }
 
-#login-form input {
-    padding: 4px 6px;
-    border-radius: 4px;
-    border: 1px solid var(--border-color);
+input:focus,
+select:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    background: white;
+    box-shadow: 0 0 0 4px var(--primary-color-light);
 }
 
-#login-form button {
-    margin-top: 4px;
-    padding: 6px 8px;
-    border-radius: 4px;
+/* Buttons in forms */
+form button,
+.modal-box button {
+    padding: 12px;
+    border-radius: 10px;
     border: none;
+    font-weight: 600;
     cursor: pointer;
-    font-size: 13px;
+    font-size: 15px;
+    transition: background 0.2s;
 }
 
-#login-form button[type="submit"] {
+button[type="submit"],
+#img-calendar-save-btn,
+#img-category-save-btn {
     background: var(--primary-color);
-    color: #fff;
+    color: white;
 }
 
+button[type="submit"]:hover {
+    background: var(--primary-color-hover);
+}
+
+button[type="button"].cancel-btn,
+#event-reset-btn,
 #login-cancel-btn {
-    background: #eee;
+    background: #f0f2f5;
+    color: var(--text-muted);
 }
 
-/* Event creation overlay */
-#event-overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.6);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1200;
+button[type="button"].cancel-btn:hover {
+    background: #e4e6eb;
 }
 
-#event-box {
-    background: #fff;
-    padding: 24px;
-    border-radius: 12px;
-    width: min(420px, 95vw);
-    box-shadow: 0 10px 25px rgba(0,0,0,0.1);
-}
-
-#event-box h2 {
-    margin-top: 0;
-}
-
-#event-form {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    font-size: 13px;
-}
-
-#event-form label {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-}
-
-#event-form input,
-#event-form select {
-    padding: 4px 6px;
-    border-radius: 4px;
-    border: 1px solid var(--border-color);
-    font-size: 13px;
-}
-
-#event-form button {
-    margin-top: 4px;
-    padding: 6px 8px;
-    border-radius: 4px;
-    border: none;
-    cursor: pointer;
-    font-size: 13px;
-}
-
-#event-save-btn {
-    background: var(--primary-color);
-    color: #fff;
-}
-
-#event-reset-btn {
-    background: #eee;
-}
-
-#custom-recurrence-options {
-    margin-top: 4px;
-    padding: 8px;
-    border: 1px dashed var(--border-color);
-    border-radius: 6px;
-    background: #fafafa;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-}
-
-.weekday-grid {
-    font-size: 12px;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-}
-
-.weekday-options {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-}
-
-.weekday-options label {
-    font-size: 11px;
-    padding: 2px 6px;
-    border-radius: 4px;
-    border: 1px solid var(--border-color);
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    background: #fff;
-}
-
+/* Crop Controls */
 .crop-controls {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    margin: 4px 0;
+    background: #fafafa;
+    padding: 15px;
+    border-radius: 12px;
+    border: 1px dashed #ddd;
 }
 
-.crop-controls label {
-    font-size: 12px;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
+/* --- FullCalendar Overrides --- */
+.fc {
+    font-family: var(--font-body);
 }
 
-.crop-controls input[type="range"] {
-    width: 100%;
-}
-
-/* FullCalendar tweaks */
 .fc-toolbar-title {
-    font-size: 16px;
+    font-size: 1.5rem !important;
+    font-weight: 700 !important;
+    letter-spacing: -0.02em;
 }
 
-.fc-col-header-cell-cushion,
-.fc-daygrid-day-number {
-    font-size: 12px;
+.fc-button-primary {
+    background-color: transparent !important;
+    border: none !important;
+    color: var(--text-muted) !important;
+    font-weight: 600 !important;
+    text-transform: capitalize;
+    box-shadow: none !important;
 }
 
+.fc-button-primary:hover {
+    background-color: rgba(0, 0, 0, 0.05) !important;
+    color: var(--text-main) !important;
+}
+
+.fc-button-active {
+    background-color: rgba(0, 0, 0, 0.05) !important;
+    color: var(--primary-color) !important;
+}
+
+.fc-col-header-cell {
+    background: transparent !important;
+    border-bottom: 1px solid var(--border-light) !important;
+    padding: 10px 0 !important;
+}
+
+.fc-timegrid-slot {
+    height: 40px !important;
+    /* Taller slots */
+    border-bottom: 1px solid rgba(0, 0, 0, 0.03) !important;
+}
+
+.fc-event {
+    border: none !important;
+    border-radius: 8px !important;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+    padding: 2px !important;
+    transition: transform 0.2s;
+}
+
+.fc-event:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 15px rgba(0, 0, 0, 0.1);
+    z-index: 10 !important;
+}
+
+/* Custom Event Content */
 .custom-event-content {
     display: flex;
     align-items: center;
-    gap: 6px;
-    width: 100%;
+    gap: 8px;
+    height: 100%;
+    overflow: hidden;
 }
 
 .custom-event-content img {
-    width: 36px;
-    height: 36px;
+    height: 100%;
+    aspect-ratio: 1;
     border-radius: 6px;
     object-fit: cover;
-    background: var(--bg-light);
-    flex-shrink: 0;
 }
 
 .custom-event-content .event-title {
-    font-size: 13px;
     font-weight: 600;
+    font-size: 13px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
 }
 
+/* ========================================= */
+/* MOBILE RESPONSIVE DESIGN (< 768px)       */
+/* ========================================= */
 @media (max-width: 768px) {
+    :root {
+        --sidebar-width: 0px;
+        --rightbar-width: 0px;
+    }
+
     #app-container {
         grid-template-columns: 1fr;
         grid-template-rows: auto 1fr auto;
-        height: auto;
+        display: flex;
+        flex-direction: column;
     }
 
-    #left-sidebar, #right-sidebar {
-        width: 100%;
-        border-right: none;
-        border-left: none;
-        border-bottom: 1px solid var(--border-color);
-        box-shadow: none;
+    /* Header Bar */
+    .mobile-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px 16px;
+        background: rgba(255, 255, 255, 0.9);
+        backdrop-filter: blur(10px);
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+        z-index: 200;
+        height: 60px;
     }
 
+    /* Transform Left Sidebar into Overlay Drawer */
+    #left-sidebar {
+        position: fixed;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 85%;
+        max-width: 320px;
+        background: white;
+        transform: translateX(-100%);
+        box-shadow: 0 0 50px rgba(0, 0, 0, 0.2);
+        z-index: 1000;
+        padding-top: 60px;
+        /* Space for close btn */
+    }
+
+    #left-sidebar.open {
+        transform: translateX(0);
+    }
+
+    /* Overlay backdrop for sidebar */
+    #sidebar-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.5);
+        backdrop-filter: blur(4px);
+        z-index: 900;
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity 0.3s;
+    }
+
+    #sidebar-overlay.visible {
+        opacity: 1;
+        visibility: visible;
+    }
+
+    /* Right sidebar (Time Strip) - hidden on mobile for now, 
+       can be toggled if we really need it, but drag-create is hard on mobile 
+       so we rely on "+ Button" FAB */
     #right-sidebar {
-        min-height: 150px;
+        display: none;
     }
 
-    .fc-toolbar {
-        flex-wrap: wrap;
-        font-size: 0.9em;
+    /* Main Content adjustments */
+    #main-content {
+        padding: 0;
+        grid-column: 1;
+        flex: 1;
+        overflow: hidden;
     }
 
-    .fc-toolbar-title {
-        font-size: 1.2em;
+    #calendar {
+        border-radius: 0;
+        background: rgba(255, 255, 255, 0.85);
+        box-shadow: none;
+        padding-bottom: 80px;
+        /* Safe area for FAB */
     }
+
+    /* Floating Action Button (FAB) for New Event */
+    .fab-add-event {
+        position: fixed;
+        bottom: 24px;
+        right: 24px;
+        width: 56px;
+        height: 56px;
+        border-radius: 50%;
+        background: var(--primary-color);
+        color: white;
+        box-shadow: 0 4px 15px rgba(var(--primary-hue), 100, 100, 0.4);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 28px;
+        z-index: 500;
+        border: none;
+        cursor: pointer;
+    }
+
+    /* Mobile Menu Toggle */
+    .mobile-menu-toggle {
+        display: block;
+        background: none;
+        border: none;
+        font-size: 24px;
+        cursor: pointer;
+        padding: 8px;
+    }
+}
+
+/* Image Preview */
+.image-preview-container {
+    width: 100%;
+    height: 200px;
+    background: #f0f0f0;
+    border-radius: 8px;
+    margin-bottom: 12px;
+    overflow: hidden;
+    position: relative;
+    border: 1px solid var(--border-color);
+}
+
+.image-preview-container img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    background-color: #ddd;
+}
+
+/* Toast Notifications */
+.toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: #333;
+    color: white;
+    padding: 12px 24px;
+    border-radius: 50px;
+    font-size: 14px;
+    font-weight: 600;
+    opacity: 0;
+    transition: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+    z-index: 2000;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+    pointer-events: none;
+}
+
+.toast.visible {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+}
+
+.toast-success {
+    background: var(--secondary-color);
+}
+
+.toast-error {
+    background: var(--danger-color);
+}
+
+.toast-info {
+    background: var(--primary-color);
 }

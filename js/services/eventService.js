@@ -34,7 +34,9 @@ class EventService {
         }
 
         // Update properties
-        Object.assign(eventObj, eventData);
+        // Remove id from eventData to avoid overwriting the generated id with null/empty
+        const { id, ...dataToUpdate } = eventData;
+        Object.assign(eventObj, dataToUpdate);
         if (eventObj.hasImage === undefined) {
             eventObj.hasImage = false;
         }

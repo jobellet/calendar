@@ -45,6 +45,14 @@ class UI {
             recurrenceDayInputs: Array.from(document.querySelectorAll('input[name="event-recurrence-days"]')),
             eventRecurrenceInterval: document.getElementById('event-recurrence-interval'),
             eventRecurrenceUntil: document.getElementById('event-recurrence-until'),
+            // Image Preview Elements
+            imgCalendarPreview: document.getElementById('img-calendar-preview'),
+            imgCategoryPreview: document.getElementById('img-category-preview'),
+            // Mobile elements
+            mobileMenuToggle: document.querySelector('.mobile-menu-toggle'),
+            sidebarOverlay: document.getElementById('sidebar-overlay'),
+            leftSidebar: document.getElementById('left-sidebar'),
+            fabAddEvent: document.querySelector('.fab-add-event'),
         };
     }
 
@@ -86,13 +94,15 @@ class UI {
 
         // Login submit (just closes for now)
         if (this.elements.loginForm) {
-            this.elements.loginForm.addEventListener('submit', (e) => {
+            this.elements.loginForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
                 const email = document.getElementById('login-email').value;
                 const password = document.getElementById('login-password').value;
-                // later: this.app.megaSync.login(email, password);
-                this.elements.loginOverlay.classList.add('hidden');
-                this.app.setOnlineStatus(true);
+
+                await this.app.loginToMega(email, password);
+
+                this.elements.loginOverlay.classList.remove('visible');
+                setTimeout(() => this.elements.loginOverlay.classList.add('hidden'), 300);
             });
         }
 
@@ -105,10 +115,10 @@ class UI {
         });
 
         // Event form submit (overlay)
-    this.elements.eventForm.addEventListener('submit', async (e) => {
+        this.elements.eventForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-        await this.app.saveEventFromForm();
-             this.toggleModal(this.elements.eventOverlay, false);
+            await this.app.saveEventFromForm();
+            this.toggleModal(this.elements.eventOverlay, false);
         });
 
         if (this.elements.eventRecurrence) {
@@ -156,51 +166,166 @@ class UI {
             this.app.saveCategoryImage(scope, category, dataUrl, { cropX, cropY });
         });
 
+        // Initialize Previews
+        this.setupImagePreview(
+            this.elements.imgCalendarFile,
+            this.elements.imgCalendarPreview,
+            this.elements.imgCalendarCropX,
+            this.elements.imgCalendarCropY
+        );
+        this.setupImagePreview(
+            this.elements.imgCategoryFile,
+            this.elements.imgCategoryPreview,
+            this.elements.imgCategoryCropX,
+            this.elements.imgCategoryCropY
+        );
+
         // Right sidebar hover / click -> choose time in the same zoom window as day view
         if (this.elements.timeHoverContainer) {
             const container = this.elements.timeHoverContainer;
             const indicator = this.elements.timeHoverIndicator;
+            let isDragging = false;
+            let startY = 0;
+            let startMinutes = 0;
 
-            const updateIndicator = (clientY) => {
+            // Helper to get minutes from Y position
+            const getMinutesFromY = (y) => {
                 const rect = container.getBoundingClientRect();
-                const y = Math.min(Math.max(clientY - rect.top, 0), rect.height);
-
-                const { startMinutes, endMinutes } = this.app.getTimeStripWindow();
-                const span = Math.max(1, endMinutes - startMinutes);
-                const ratio = rect.height > 0 ? (y / rect.height) : 0;
-                const minutes = startMinutes + ratio * span;
-
-                const hour = Math.floor(minutes / 60);
-                const minute = Math.round(minutes % 60);
-                const hh = hour.toString().padStart(2, '0');
-                const mm = minute.toString().padStart(2, '0');
-
-                indicator.textContent = `${hh}:${mm}`;
-                indicator.style.top = `${y - 8}px`;
+                const safeY = Math.min(Math.max(y - rect.top, 0), rect.height);
+                const ratio = rect.height > 0 ? (safeY / rect.height) : 0;
+                return Math.round(ratio * 24 * 60);
             };
 
-            container.addEventListener('mousemove', (e) => {
-                updateIndicator(e.clientY);
-            });
+            const formatTime = (minutes) => {
+                const h = Math.floor(minutes / 60);
+                const m = Math.floor(minutes % 60);
+                return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+            };
 
-            container.addEventListener('mouseleave', () => {
-                indicator.textContent = 'Move here to choose a time';
-                indicator.style.top = '4px';
-            });
+            // Drag Start
+            container.addEventListener('mousedown', (e) => {
+                isDragging = true;
+                startY = e.clientY;
+                startMinutes = getMinutesFromY(e.clientY);
 
-            container.addEventListener('click', (e) => {
+                // Create/Update visual selection div
+                let selection = document.getElementById('time-strip-selection');
+                if (!selection) {
+                    selection = document.createElement('div');
+                    selection.id = 'time-strip-selection';
+                    selection.style.position = 'absolute';
+                    selection.style.background = 'rgba(var(--primary-hue), var(--primary-sat), var(--primary-lig), 0.3)';
+                    selection.style.width = '100%';
+                    selection.style.pointerEvents = 'none';
+                    container.appendChild(selection);
+                }
+
                 const rect = container.getBoundingClientRect();
-                const y = Math.min(Math.max(e.clientY - rect.top, 0), rect.height);
+                const relativeY = Math.min(Math.max(e.clientY - rect.top, 0), rect.height);
+                selection.style.top = `${relativeY}px`;
+                selection.style.height = '1px';
+                selection.style.display = 'block';
+            });
 
-                const { startMinutes, endMinutes } = this.app.getTimeStripWindow();
-                const span = Math.max(1, endMinutes - startMinutes);
-                const ratio = rect.height > 0 ? (y / rect.height) : 0;
-                const minutes = startMinutes + ratio * span;
+            // Dragging (Selection Update)
+            window.addEventListener('mousemove', (e) => {
+                if (!isDragging) {
+                    // Hover effect only
+                    if (container.contains(e.target)) {
+                        const mins = getMinutesFromY(e.clientY);
+                        indicator.textContent = formatTime(mins);
+                        const rect = container.getBoundingClientRect();
+                        const relativeY = Math.min(Math.max(e.clientY - rect.top, 0), rect.height);
+                        indicator.style.top = `${relativeY - 8}px`;
+                        indicator.style.display = 'block';
+                    } else {
+                        indicator.style.display = 'none';
+                    }
+                    return;
+                }
 
-                const hour = Math.floor(minutes / 60);
-                const minute = Math.round(minutes % 60);
+                // Update selection visual
+                const currentMinutes = getMinutesFromY(e.clientY);
+                const rect = container.getBoundingClientRect();
+                const currentY = Math.min(Math.max(e.clientY - rect.top, 0), rect.height);
+                const startRelY = (startMinutes / (24 * 60)) * rect.height; // Recalculate robust start Y
 
-                this.app.openEventCreationAt(hour, minute);
+                const top = Math.min(startRelY, currentY);
+                const height = Math.abs(currentY - startRelY);
+
+                const selection = document.getElementById('time-strip-selection');
+                if (selection) {
+                    selection.style.top = `${top}px`;
+                    selection.style.height = `${height}px`;
+                }
+
+                indicator.textContent = `${formatTime(Math.min(startMinutes, currentMinutes))} - ${formatTime(Math.max(startMinutes, currentMinutes))}`;
+                indicator.style.top = `${currentY}px`;
+            });
+
+            // Drag End (Create Event)
+            window.addEventListener('mouseup', (e) => {
+                if (!isDragging) return;
+                isDragging = false;
+
+                const endMinutes = getMinutesFromY(e.clientY);
+
+                // Determine range
+                const minMins = Math.min(startMinutes, endMinutes);
+                const maxMins = Math.max(startMinutes, endMinutes);
+
+                // If it's just a click (diff < 5 mins), treat as 30m slot
+                const diff = maxMins - minMins;
+                let finalStart = minMins;
+                let finalEnd = maxMins;
+
+                if (diff < 15) {
+                    finalEnd = finalStart + 30; // Default 30 min
+                }
+
+                // Hide selection visual
+                const selection = document.getElementById('time-strip-selection');
+                if (selection) selection.style.display = 'none';
+
+                // Convert to Dates
+                const baseDate = new Date(); // Or current viewed date
+                const start = new Date(baseDate);
+                start.setHours(Math.floor(finalStart / 60), finalStart % 60, 0, 0);
+
+                const end = new Date(baseDate);
+                end.setHours(Math.floor(finalEnd / 60), finalEnd % 60, 0, 0);
+
+                // Open modal
+                this.app.openEventCreationFromRange(start, end);
+            });
+        }
+
+        // Mobile Interactions
+        if (this.elements.mobileMenuToggle) {
+            this.elements.mobileMenuToggle.addEventListener('click', () => {
+                this.elements.leftSidebar.classList.add('open');
+                this.elements.sidebarOverlay.classList.add('visible');
+            });
+        }
+
+        if (this.elements.sidebarOverlay) {
+            this.elements.sidebarOverlay.addEventListener('click', () => {
+                this.elements.leftSidebar.classList.remove('open');
+                this.elements.sidebarOverlay.classList.remove('visible');
+            });
+        }
+
+        if (this.elements.fabAddEvent) {
+            this.elements.fabAddEvent.addEventListener('click', () => {
+                const now = new Date();
+                // Default to next rounded half-hour
+                let minutes = Math.ceil(now.getMinutes() / 30) * 30;
+                let hours = now.getHours();
+                if (minutes === 60) {
+                    minutes = 0;
+                    hours += 1;
+                }
+                this.app.openEventCreationAt(hours, minutes);
             });
         }
     }
@@ -248,7 +373,7 @@ class UI {
     }
 
     refreshImagePanelSelectors() {
-        const calendars = this.app ? this.app.calendars : [];
+        const calendars = this.app ? this.app.calendarService.getAll() : [];
         // Calendar image select
         this.elements.imgCalendarSelect.innerHTML = '';
         calendars.forEach(cal => {
@@ -425,5 +550,51 @@ class UI {
             // Hide the element after the transition is complete
             setTimeout(() => modalElement.classList.add('hidden'), 300);
         }
+    }
+
+    setupImagePreview(fileInput, imgEl, cropXInput, cropYInput) {
+        if (!fileInput || !imgEl) return;
+
+        const updatePosition = () => {
+            const x = cropXInput ? cropXInput.value : 50;
+            const y = cropYInput ? cropYInput.value : 50;
+            imgEl.style.objectPosition = `${x}% ${y}%`;
+        };
+
+        if (cropXInput) cropXInput.addEventListener('input', updatePosition);
+        if (cropYInput) cropYInput.addEventListener('input', updatePosition);
+
+        fileInput.addEventListener('change', async () => {
+            const file = fileInput.files[0];
+            if (file) {
+                const dataUrl = await this.readFileAsDataURL(file);
+                imgEl.src = dataUrl;
+                imgEl.style.display = 'block';
+                updatePosition();
+            } else {
+                imgEl.style.display = 'none';
+                imgEl.src = '';
+            }
+        });
+    }
+
+    showToast(message, type = 'info') {
+        const toast = document.createElement('div');
+        toast.className = `toast toast-${type}`;
+        toast.textContent = message;
+        document.body.appendChild(toast);
+
+        // Animation in
+        requestAnimationFrame(() => {
+            toast.classList.add('visible');
+        });
+
+        // Remove after 3s
+        setTimeout(() => {
+            toast.classList.remove('visible');
+            setTimeout(() => {
+                document.body.removeChild(toast);
+            }, 300);
+        }, 3000);
     }
 }

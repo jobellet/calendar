@@ -9,19 +9,31 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/styles.css">
-    <!-- FullCalendar -->
-    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/resource-timegrid/index.global.min.js"></script>
+    <link rel="stylesheet" href="css/header-img.css">
+
+    <!-- FullCalendar Scheduler (includes Core + Standard + Premium plugins) -->
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar-scheduler@6.1.15/index.global.min.js"></script>
     <!-- rrule plugin for recurring events -->
     <script src="https://cdn.jsdelivr.net/npm/fullcalendar-rrule@6.1.15/index.global.min.js"></script>
 </head>
 
 <body>
     <div id="app-container">
+        <!-- Mobile Header (Visible only on <768px via CSS) -->
+        <header class="mobile-header" style="display: none;"> <!-- Styles will toggle display -->
+            <button class="mobile-menu-toggle">☰</button>
+            <h1 style="font-size: 18px; margin: 0; font-weight: 600; color: var(--primary-color);">Family Calendar</h1>
+            <div style="width: 24px;"></div> <!-- Spacer -->
+        </header>
+
+        <!-- Sidebar Overlay -->
+        <div id="sidebar-overlay"></div>
+
         <!-- Left Sidebar -->
         <aside id="left-sidebar">
             <div id="sync-section">
                 <button id="sync-btn" class="status-offline" title="Sync with MEGA">🔄</button>
+                <span style="font-weight: 600; font-size: 14px; margin-left: 8px;">Sync Status</span>
             </div>
 
             <div id="view-selector">
@@ -44,6 +56,8 @@
         <!-- Main Calendar Area -->
         <main id="main-content">
             <div id="calendar"></div>
+            <!-- Mobile Floating Action Button -->
+            <button class="fab-add-event" style="display: none;">+</button>
         </main>
 
         <!-- Right Sidebar: time picker area -->
@@ -71,6 +85,12 @@
                     Image file
                     <input type="file" id="img-calendar-file" accept="image/*">
                 </label>
+
+                <!-- Preview Container -->
+                <div class="image-preview-container">
+                    <img id="img-calendar-preview" src="" alt="Preview" style="display: none;">
+                </div>
+
                 <div class="crop-controls">
                     <label>
                         Horizontal focus
@@ -100,6 +120,12 @@
                     Image file
                     <input type="file" id="img-category-file" accept="image/*">
                 </label>
+
+                <!-- Preview Container -->
+                <div class="image-preview-container">
+                    <img id="img-category-preview" src="" alt="Preview" style="display: none;">
+                </div>
+
                 <div class="crop-controls">
                     <label>
                         Horizontal focus
