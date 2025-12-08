@@ -96,6 +96,7 @@ class CalendarApp {
             },
             editable: true,
             selectable: true,
+            selectMirror: true,
             eventClick: (info) => {
                 const event = this.events.find(e => e.id === info.event.id);
                 if (event) {
@@ -103,12 +104,23 @@ class CalendarApp {
                     this.ui.elements.eventOverlay.classList.remove('hidden');
                 }
             },
+            // Click on day cells in month view -> go to that day
             dateClick: (info) => {
-                // When clicking on a day in other views, go to that day in day view
-                this.fullCalendar.changeView('timeGridDay', info.date);
-                const dayBtn = this.ui.elements.viewSelector.querySelector('button[data-view="timeGridDay"]');
-                if (dayBtn) {
-                    this.ui.setActiveViewButton(dayBtn);
+                const vType = this.fullCalendar.view.type;
+                if (vType.startsWith('dayGrid')) {
+                    this.fullCalendar.changeView('timeGridDay', info.date);
+                    const dayBtn = this.ui.elements.viewSelector.querySelector('button[data-view="timeGridDay"]');
+                    if (dayBtn) {
+                        this.ui.setActiveViewButton(dayBtn);
+                    }
+                }
+            },
+            // Drag-select an empty region on the calendar -> create event with start/end
+            select: (info) => {
+                const vType = this.fullCalendar.view.type;
+                // We only use range-based time selection in timeGrid views
+                if (vType.startsWith('timeGrid')) {
+                    this.openEventCreationFromRange(info.start, info.end);
                 }
             },
             eventDrop: async (info) => {
@@ -281,6 +293,10 @@ class CalendarApp {
         return localEvent;
     }
 
+    /**
+     * Called when user clicks in the right sidebar time strip.
+     * Uses current day from the calendar and a 30-min default duration.
+     */
     openEventCreationAt(hour, minute) {
         const baseDate = this.fullCalendar ? this.fullCalendar.getDate() : new Date();
         const year = baseDate.getFullYear();
@@ -308,6 +324,37 @@ class CalendarApp {
             name: '',
             start: `${startDateStr}T${startTimeStr}:00`,
             end: `${startDateStr}T${endTimeStr}:00`,
+            recurrence: { type: 'none' }
+        });
+        this.ui.elements.eventOverlay.classList.remove('hidden');
+    }
+
+    /**
+     * Called when user click-drags on empty time slots in the calendar.
+     * Start = press position, End = release position.
+     */
+    openEventCreationFromRange(start, end) {
+        const year = start.getFullYear();
+        const month = (start.getMonth() + 1).toString().padStart(2, '0');
+        const day = start.getDate().toString().padStart(2, '0');
+
+        const sh = start.getHours().toString().padStart(2, '0');
+        const sm = start.getMinutes().toString().padStart(2, '0');
+        const eh = end.getHours().toString().padStart(2, '0');
+        const em = end.getMinutes().toString().padStart(2, '0');
+
+        const dateStr = `${year}-${month}-${day}`;
+        const startTimeStr = `${sh}:${sm}`;
+        const endTimeStr = `${eh}:${em}`;
+
+        const defaultCalendar = this.calendars[0]?.name || 'Main';
+
+        this.ui.populateEventForm({
+            id: '',
+            calendar: defaultCalendar,
+            name: '',
+            start: `${dateStr}T${startTimeStr}:00`,
+            end: `${dateStr}T${endTimeStr}:00`,
             recurrence: { type: 'none' }
         });
         this.ui.elements.eventOverlay.classList.remove('hidden');
