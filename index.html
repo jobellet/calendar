@@ -3,299 +3,150 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MEGA Calendar (Debug Mode)</title>
-
-    <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js'></script>
-    
-    <style>
-        :root { --primary: #d9272e; --bg: #f0f2f5; }
-        body { font-family: sans-serif; margin: 0; padding: 0; background: var(--bg); height: 100vh; display: flex; flex-direction: column; }
-        
-        /* Login Overlay */
-        #login-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: white; z-index: 2000; display: flex; justify-content: center; align-items: center; flex-direction: column; }
-        .login-box { background: white; padding: 2rem; border-radius: 8px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); width: 320px; text-align: center; border: 1px solid #ddd; }
-        .input-group { margin-bottom: 1rem; text-align: left; }
-        .input-group input, select { width: 100%; padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
-        button { width: 100%; padding: 0.75rem; background: var(--primary); color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
-        button:disabled { background: #ccc; }
-
-        /* Calendar & Header */
-        #header-bar { display: none; padding: 10px 20px; background: white; border-bottom: 1px solid #ddd; justify-content: space-between; align-items: center; }
-        #calendar-container { flex: 1; padding: 20px; display: none; }
-        #calendar { background: white; padding: 20px; border-radius: 8px; height: 100%; }
-
-        /* DEBUG CONSOLE */
-        #debug-console {
-            background: #1e1e1e;
-            color: #00ff00;
-            font-family: 'Courier New', monospace;
-            font-size: 12px;
-            padding: 10px;
-            height: 150px;
-            overflow-y: auto;
-            border-top: 2px solid #555;
-            width: 100%;
-            box-sizing: border-box;
-            display: block; /* Always visible for debugging */
-        }
-        .log-line { margin: 2px 0; border-bottom: 1px solid #333; padding-bottom: 2px; }
-        .log-error { color: #ff4444; font-weight: bold; }
-        .log-success { color: #00ffff; }
-
-        /* Modal */
-        #modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; display: none; justify-content: center; align-items: center; }
-        .modal-box { background: white; padding: 20px; border-radius: 8px; width: 300px; }
-    </style>
+    <title>Family Calendar</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
 </head>
 <body>
+    <div id="app-container">
+        <!-- Left Sidebar -->
+        <aside id="left-sidebar">
+            <div id="sync-section">
+                <button id="sync-btn" class="status-offline" title="Sync with MEGA">🔄</button>
+            </div>
 
-    <div id="login-overlay">
-        <div class="login-box">
-            <h2 style="color: #d9272e; margin-top:0;">MEGA Calendar</h2>
-            <div class="input-group">
-                <label>Email</label>
-                <input type="email" id="mega-email" placeholder="email@example.com">
+            <div id="view-selector">
+                <button type="button" data-view="dayGridMonth">Month</button>
+                <button type="button" data-view="timeGridWeek">Week</button>
+                <button type="button" data-view="timeGridDay">Day</button>
+                <button type="button" data-view="hour">Hour</button>
             </div>
-            <div class="input-group">
-                <label>Password</label>
-                <input type="password" id="mega-password" placeholder="********">
+
+            <div id="calendars-section">
+                <h3>Calendars</h3>
+                <div id="calendars-list"></div>
+                <button id="add-calendar-btn" type="button">+ Add calendar</button>
             </div>
-            <button id="login-btn">Login & Sync</button>
+
+            <div id="image-management-tab">
+                <button id="open-image-panel-btn" type="button">🎨 Images</button>
+            </div>
+        </aside>
+
+        <!-- Main Calendar Area -->
+        <main id="main-content">
+            <div id="calendar"></div>
+        </main>
+
+        <!-- Right Sidebar (Event Form) -->
+        <aside id="right-sidebar">
+            <h3 id="event-form-title">Create event</h3>
+            <form id="event-form">
+                <input type="hidden" id="event-id">
+
+                <label>
+                    Calendar
+                    <select id="event-calendar"></select>
+                </label>
+
+                <label>
+                    Name / Category
+                    <input type="text" id="event-name" required>
+                </label>
+
+                <label>
+                    Date
+                    <input type="date" id="event-date" required>
+                </label>
+
+                <label>
+                    Start time
+                    <input type="time" id="event-start-time" required>
+                </label>
+
+                <label>
+                    End time
+                    <input type="time" id="event-end-time" required>
+                </label>
+
+                <label>
+                    Recurrence
+                    <select id="event-recurrence">
+                        <option value="none">None</option>
+                        <option value="daily">Daily</option>
+                        <option value="weekly">Weekly</option>
+                        <option value="biweekly">Every 2 weeks</option>
+                    </select>
+                </label>
+
+                <button type="submit" id="event-save-btn">Save</button>
+                <button type="button" id="event-reset-btn">Clear</button>
+            </form>
+        </aside>
+    </div>
+
+    <!-- Image Management Panel -->
+    <div id="image-management-panel" class="hidden">
+        <div id="image-management-content">
+            <button id="close-image-panel-btn" type="button">✕</button>
+            <h2>Images</h2>
+
+            <section id="calendar-images-section">
+                <h3>Calendar images</h3>
+                <label>
+                    Calendar
+                    <select id="img-calendar-select"></select>
+                </label>
+                <label>
+                    Image file
+                    <input type="file" id="img-calendar-file" accept="image/*">
+                </label>
+                <button type="button" id="img-calendar-save-btn">Save calendar image</button>
+            </section>
+
+            <section id="category-images-section">
+                <h3>Category images</h3>
+                <label>
+                    Category name
+                    <input type="text" id="img-category-name">
+                </label>
+                <label>
+                    Scope
+                    <select id="img-category-scope">
+                        <option value="all">All calendars</option>
+                    </select>
+                </label>
+                <label>
+                    Image file
+                    <input type="file" id="img-category-file" accept="image/*">
+                </label>
+                <button type="button" id="img-category-save-btn">Save category image</button>
+            </section>
         </div>
     </div>
 
-    <div id="header-bar">
-        <span><b>Status:</b> <span id="status-text">Ready</span></span>
-        <button onclick="location.reload()" style="width: auto; padding: 5px 10px; font-size: 0.8rem;">Logout</button>
-    </div>
-
-    <div id="calendar-container">
-        <div id="calendar"></div>
-    </div>
-
-    <div id="modal-overlay">
-        <div class="modal-box">
-            <h3>Event Details</h3>
-            <input type="hidden" id="evt-id">
-            <div class="input-group"><input type="text" id="evt-title" placeholder="Title"></div>
-            <div class="input-group">
-                <select id="evt-cat">
-                    <option value="work">Work (Blue)</option>
-                    <option value="personal">Personal (Green)</option>
-                    <option value="urgent">Urgent (Red)</option>
-                </select>
-            </div>
-            <div style="display:flex; gap:10px;">
-                <button onclick="deleteEvent()" style="background:#fee2e2; color:#991b1b;">Delete</button>
-                <button onclick="saveEvent()">Save</button>
-                <button onclick="closeModal()" style="background:#ddd; color:#333;">Cancel</button>
-            </div>
+    <!-- Login Overlay (for future MEGA auth) -->
+    <div id="login-overlay" class="hidden">
+        <div id="login-box">
+            <h2>Login to MEGA</h2>
+            <form id="login-form">
+                <label>
+                    Email
+                    <input type="email" id="login-email" required>
+                </label>
+                <label>
+                    Password
+                    <input type="password" id="login-password" required>
+                </label>
+                <button type="submit">Login</button>
+                <button type="button" id="login-cancel-btn">Cancel</button>
+            </form>
         </div>
     </div>
 
-    <div id="debug-console">
-        <div class="log-line">System initialized. Waiting for user input...</div>
-    </div>
-
-    <script type="module">
-        // 1. SETUP UI & LOGGING FIRST (So we can catch errors immediately)
-        const ui = {
-            login: document.getElementById('login-overlay'),
-            app: document.getElementById('calendar-container'),
-            header: document.getElementById('header-bar'),
-            btn: document.getElementById('login-btn'),
-            console: document.getElementById('debug-console'),
-            modal: document.getElementById('modal-overlay'),
-            title: document.getElementById('evt-title'),
-            cat: document.getElementById('evt-cat'),
-            id: document.getElementById('evt-id')
-        };
-
-        function log(msg, type = 'normal') {
-            const date = new Date().toLocaleTimeString();
-            const div = document.createElement('div');
-            div.className = 'log-line ' + (type === 'error' ? 'log-error' : type === 'success' ? 'log-success' : '');
-            div.innerText = `[${date}] ${msg}`;
-            
-            // Safety check: only append if console element was found
-            if(ui.console) {
-                ui.console.appendChild(div);
-                ui.console.scrollTop = ui.console.scrollHeight; 
-            }
-            console.log(msg); 
-        }
-
-        // 2. IMPORT LIBRARY
-        let Storage;
-        try {
-            log("Importing megajs library...");
-            const module = await import('https://unpkg.com/megajs@1.3.5/dist/main.browser-es.mjs');
-            Storage = module.Storage;
-            log("Library imported successfully.", "success");
-        } catch (e) {
-            log("CRITICAL ERROR: Could not load library. Check internet/adblock.", "error");
-            console.error(e);
-        }
-
-        // 3. VARIABLES
-        const FILENAME = 'calendar_data_v2.json';
-        const COLORS = { 'work': '#3b82f6', 'personal': '#10b981', 'urgent': '#ef4444' };
-        let mega = null;
-        let cal = null;
-        let selectedInfo = null;
-
-        // 4. EVENT LISTENERS
-        if(ui.btn) {
-            ui.btn.addEventListener('click', async () => {
-                const email = document.getElementById('mega-email').value;
-                const pass = document.getElementById('mega-password').value;
-                
-                if(!email || !pass) { log("Error: Email or password missing", "error"); return; }
-                if(!Storage) { log("Error: Library not loaded.", "error"); return; }
-
-                ui.btn.disabled = true;
-                ui.btn.innerText = "Connecting...";
-                
-                try {
-                    log(`Generating keys for ${email}...`);
-                    mega = new Storage({ email: email, password: pass, keepalive: true });
-
-                    log("Connecting to MEGA API...");
-                    await new Promise((resolve, reject) => {
-                        const timeout = setTimeout(() => reject(new Error("Timeout (15s)")), 15000);
-                        mega.on('ready', () => { clearTimeout(timeout); resolve(); });
-                        mega.on('error', (err) => { clearTimeout(timeout); reject(err); });
-                    });
-
-                    log("Authenticated!", "success");
-                    ui.login.style.display = 'none';
-                    ui.header.style.display = 'flex';
-                    ui.app.style.display = 'block';
-
-                    await loadCalendarData();
-
-                } catch (err) {
-                    log("LOGIN FAILED: " + err.message, "error");
-                    ui.btn.disabled = false;
-                    ui.btn.innerText = "Login & Sync";
-                }
-            });
-        }
-
-        async function loadCalendarData() {
-            log("Checking storage for data...");
-            let events = [];
-            const file = mega.root.children.find(f => f.name === FILENAME);
-            
-            if (file) {
-                log("Found file. Downloading...", "success");
-                try {
-                    const data = await file.downloadBuffer();
-                    events = JSON.parse(data.toString());
-                } catch(e) { log("JSON Error: " + e.message, "error"); }
-            } else {
-                log("No file found. Starting fresh.");
-            }
-            renderCalendar(events);
-        }
-
-        function renderCalendar(events) {
-            const calendarEl = document.getElementById('calendar');
-            const coloredEvents = events.map(e => ({
-                ...e,
-                backgroundColor: COLORS[e.extendedProps?.category] || '#888',
-                borderColor: COLORS[e.extendedProps?.category] || '#888'
-            }));
-
-            cal = new FullCalendar.Calendar(calendarEl, {
-                initialView: 'dayGridMonth',
-                headerToolbar: { center: 'title' },
-                events: coloredEvents,
-                selectable: true,
-                editable: true,
-                height: '100%',
-                select: (info) => { selectedInfo = info; openModal(); },
-                eventClick: (info) => { openModal(info.event); },
-                eventDrop: () => sync(),
-                eventResize: () => sync()
-            });
-
-            cal.render();
-            setTimeout(() => cal.updateSize(), 100);
-        }
-
-        async function sync() {
-            log("Syncing...");
-            const events = cal.getEvents().map(e => ({
-                id: e.id,
-                title: e.title,
-                start: e.start,
-                end: e.end,
-                allDay: e.allDay,
-                extendedProps: { category: e.extendedProps.category }
-            }));
-            const buffer = new TextEncoder().encode(JSON.stringify(events));
-
-            try {
-                const oldFile = mega.root.children.find(f => f.name === FILENAME);
-                if (oldFile) await oldFile.delete();
-                await mega.upload(FILENAME, buffer).complete;
-                log("Saved to cloud.", "success");
-            } catch (err) { log("Save failed: " + err.message, "error"); }
-        }
-
-        // GLOBAL MODAL HELPERS
-        window.openModal = (event = null) => {
-            ui.modal.style.display = 'flex';
-            if(event) {
-                ui.title.value = event.title;
-                ui.cat.value = event.extendedProps.category || 'personal';
-                ui.id.value = event.id;
-            } else {
-                ui.title.value = '';
-                ui.cat.value = 'personal';
-                ui.id.value = '';
-            }
-        };
-
-        window.closeModal = () => { ui.modal.style.display = 'none'; };
-
-        window.saveEvent = () => {
-            const title = ui.title.value;
-            const cat = ui.cat.value;
-            const id = ui.id.value;
-            if(!title) return;
-
-            if(id) {
-                const event = cal.getEventById(id);
-                event.setProp('title', title);
-                event.setExtendedProp('category', cat);
-                event.setProp('backgroundColor', COLORS[cat]);
-                event.setProp('borderColor', COLORS[cat]);
-            } else {
-                cal.addEvent({
-                    id: Date.now().toString(),
-                    title: title,
-                    start: selectedInfo.startStr,
-                    end: selectedInfo.endStr,
-                    allDay: selectedInfo.allDay,
-                    backgroundColor: COLORS[cat],
-                    borderColor: COLORS[cat],
-                    extendedProps: { category: cat }
-                });
-            }
-            closeModal();
-            sync();
-        };
-
-        window.deleteEvent = () => {
-            const id = ui.id.value;
-            if(id && confirm("Delete?")) {
-                cal.getEventById(id).remove();
-                sync();
-                closeModal();
-            }
-        };
-    </script>
+    <script src="js/db.js"></script>
+    <script src="js/ui.js"></script>
+    <script src="js/mega.js"></script>
+    <script src="js/app.js"></script>
 </body>
 </html>
