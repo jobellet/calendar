@@ -545,19 +545,6 @@ button[type="button"].cancel-btn:hover {
         flex-direction: column;
     }
 
-    /* Header Bar */
-    .mobile-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 10px 16px;
-        background: rgba(255, 255, 255, 0.9);
-        backdrop-filter: blur(10px);
-        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
-        z-index: 200;
-        height: 60px;
-    }
-
     /* Transform Left Sidebar into Overlay Drawer */
     #left-sidebar {
         position: fixed;
@@ -640,12 +627,23 @@ button[type="button"].cancel-btn:hover {
 
     /* Mobile Menu Toggle */
     .mobile-menu-toggle {
-        display: block;
-        background: none;
-        border: none;
-        font-size: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        position: fixed;
+        top: 16px;
+        left: 16px;
+        z-index: 1000;
+        background: rgba(255, 255, 255, 0.8);
+        backdrop-filter: blur(8px);
+        border: 1px solid rgba(0,0,0,0.05);
+        border-radius: 50%;
+        width: 40px;
+        height: 40px;
+        font-size: 20px;
         cursor: pointer;
-        padding: 8px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        color: var(--text-main);
     }
 }
 
