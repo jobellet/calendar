@@ -76,7 +76,7 @@ class CalendarApp {
                 }
             },
             datesSet: (info) => {
-                if (info.view.type === 'hoursView' || info.view.type === 'hoursView') { // Should match view name
+                if (info.view.type === 'hoursView') { // Should match view name
                     this.enableHoursViewUpdates(true);
                 } else {
                     this.enableHoursViewUpdates(false);
@@ -111,13 +111,28 @@ class CalendarApp {
     updateHoursViewWindow() {
         if (!this.fullCalendar) return;
         const now = new Date();
-        const start = new Date(now.getTime() - 60 * 60 * 1000); // -1 hour
-        const end = new Date(now.getTime() + 2 * 60 * 60 * 1000); // +2 hours
 
-        // Format to HH:mm:ss
-        const formatTime = (d) => {
-            return d.toTimeString().split(' ')[0];
+        // Calculate start of today (midnight)
+        const startOfDay = new Date(now);
+        startOfDay.setHours(0, 0, 0, 0);
+
+        const msSinceMidnight = now.getTime() - startOfDay.getTime();
+
+        // -1 hour, +2 hours
+        const startMs = msSinceMidnight - (60 * 60 * 1000);
+        const endMs = msSinceMidnight + (2 * 60 * 60 * 1000);
+
+        const formatDuration = (ms) => {
+            if (ms < 0) ms = 0; // Clamp to start of day
+            const totalSeconds = Math.floor(ms / 1000);
+            const h = Math.floor(totalSeconds / 3600);
+            const m = Math.floor((totalSeconds % 3600) / 60);
+            const s = totalSeconds % 60;
+            return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
         };
+
+        const minTime = formatDuration(startMs);
+        const maxTime = formatDuration(endMs);
 
         // We pad a bit to avoid cutting off events exactly at the edge
         // But the request is specific: -1 to +2.
@@ -126,9 +141,9 @@ class CalendarApp {
         // Events outside this range might be hidden or partial.
         // It does NOT change the date.
 
-        this.fullCalendar.setOption('slotMinTime', formatTime(start));
-        this.fullCalendar.setOption('slotMaxTime', formatTime(end));
-        this.fullCalendar.scrollToTime(formatTime(start)); // Ensure we are scrolled to top
+        this.fullCalendar.setOption('slotMinTime', minTime);
+        this.fullCalendar.setOption('slotMaxTime', maxTime);
+        this.fullCalendar.scrollToTime(minTime); // Ensure we are scrolled to top
     }
 
     refreshCalendarResources() {
