@@ -74,15 +74,13 @@ class UI {
 
         // Sync button -> open login overlay
         this.elements.syncBtn.addEventListener('click', () => {
-            if (this.elements.loginOverlay) {
-                this.elements.loginOverlay.classList.remove('hidden');
-            }
+            this.toggleModal(this.elements.loginOverlay, true);
         });
 
         // Login cancel
         if (this.elements.loginCancelBtn) {
             this.elements.loginCancelBtn.addEventListener('click', () => {
-                this.elements.loginOverlay.classList.add('hidden');
+                this.toggleModal(this.elements.loginOverlay, false);
             });
         }
 
@@ -107,10 +105,10 @@ class UI {
         });
 
         // Event form submit (overlay)
-        this.elements.eventForm.addEventListener('submit', (e) => {
+    this.elements.eventForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            this.app.saveEventFromForm();
-            this.elements.eventOverlay.classList.add('hidden');
+        await this.app.saveEventFromForm();
+             this.toggleModal(this.elements.eventOverlay, false);
         });
 
         if (this.elements.eventRecurrence) {
@@ -120,18 +118,18 @@ class UI {
         }
 
         this.elements.eventResetBtn.addEventListener('click', () => {
-            this.elements.eventOverlay.classList.add('hidden');
+            this.toggleModal(this.elements.eventOverlay, false);
         });
 
         // Image management panel
         this.elements.openImagePanelBtn.addEventListener('click', () => {
-            this.elements.imageManagementPanel.classList.remove('hidden');
+            this.toggleModal(this.elements.imageManagementPanel, true);
             this.refreshImagePanelSelectors();
         });
 
         if (this.elements.closeImagePanelBtn) {
             this.elements.closeImagePanelBtn.addEventListener('click', () => {
-                this.elements.imageManagementPanel.classList.add('hidden');
+                this.toggleModal(this.elements.imageManagementPanel, false);
             });
         }
 
@@ -349,6 +347,35 @@ class UI {
         this.elements.customRecurrenceOptions.classList.toggle('hidden', !show);
     }
 
+    getEventFormData() {
+        const id = this.elements.eventId.value || null;
+        const calendar = this.elements.eventCalendar.value;
+        const name = this.elements.eventName.value.trim();
+        const date = this.elements.eventDate.value;
+        const startTime = this.elements.eventStartTime.value;
+        const endTime = this.elements.eventEndTime.value;
+
+        if (!calendar || !name || !date || !startTime || !endTime) {
+            alert('Please fill all required fields.');
+            return null;
+        }
+
+        const recurrence = this.getRecurrencePayload();
+        if (recurrence.type === 'custom' && (!recurrence.days || !recurrence.days.length)) {
+            alert('Please select at least one weekday for custom recurrence.');
+            return null;
+        }
+
+        return {
+            id,
+            calendar,
+            name,
+            start: new Date(`${date}T${startTime}:00`).toISOString(),
+            end: new Date(`${date}T${endTime}:00`).toISOString(),
+            recurrence
+        };
+    }
+
     getRecurrencePayload() {
         const type = this.elements.eventRecurrence?.value || 'none';
         const payload = {
@@ -386,5 +413,17 @@ class UI {
             reader.onerror = reject;
             reader.readAsDataURL(file);
         });
+    }
+
+    toggleModal(modalElement, show) {
+        if (show) {
+            modalElement.classList.remove('hidden');
+            // Delay to allow the display property to apply before starting the transition
+            setTimeout(() => modalElement.classList.add('visible'), 10);
+        } else {
+            modalElement.classList.remove('visible');
+            // Hide the element after the transition is complete
+            setTimeout(() => modalElement.classList.add('hidden'), 300);
+        }
     }
 }

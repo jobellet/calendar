@@ -3,86 +3,27 @@ document.addEventListener('DOMContentLoaded', () => {
     app.init();
 });
 
-/**
- * Event model (logical):
- * {
- *   id: string,                  // hash of calendar + name + original start
- *   calendar: string,
- *   name: string,
- *   start: string,               // ISO datetime
- *   end: string,                 // ISO datetime
- *   createdAt: number,
- *   updatedAt: number,
- *   recurrence: {
- *      type: "none" | "daily" | "weekly" | "biweekly" | "custom",
- *      days?: string[],
- *      intervalWeeks?: number,
- *      until?: string
- *   },
- *   hasImage: boolean
- * }
- */
-
 class CalendarApp {
     constructor() {
         this.db = new Database();
+        this.historyService = new HistoryService();
+        this.eventService = new EventService(this.db, this.historyService);
+        this.imageService = new ImageService(this.db);
+        this.calendarService = new CalendarService(this.db);
         this.ui = new UI();
-        this.megaSync = new MegaSync();
         this.fullCalendar = null;
-
-        this.events = [];
-        this.calendars = [];
-        this.images = [];
-
-        this.visibleCalendars = new Set();
-
-        // Simple history stack for undo (Ctrl+Z)
-        this.history = [];
-        this.historyLimit = 20;
-    }
-
-    normalizeImageEntry(entry) {
-        if (!entry) return null;
-        const normalized = { ...entry };
-        const parsedCropX = Number(normalized.cropX);
-        const parsedCropY = Number(normalized.cropY);
-        normalized.cropX = Number.isFinite(parsedCropX) ? parsedCropX : 50;
-        normalized.cropY = Number.isFinite(parsedCropY) ? parsedCropY : 50;
-        normalized.averageColor = normalized.averageColor || '#f5f5f5';
-        return normalized;
-    }
-
-    normalizeImageEntries(entries = []) {
-        return entries
-            .map(entry => this.normalizeImageEntry(entry))
-            .filter(Boolean);
     }
 
     async init() {
         await this.db.init();
 
-        // Load data
-        this.events = await this.db.getAll('events');
-        this.calendars = await this.db.getAll('calendars');
-        this.images = await this.db.getAll('images');
-        this.images = this.normalizeImageEntries(this.images);
-
-        // Ensure at least one calendar
-        if (!this.calendars.length) {
-            const mainCal = { name: 'Main', isVisible: true };
-            await this.db.save('calendars', mainCal);
-            this.calendars.push(mainCal);
-        }
-
-        // All calendars visible by default unless marked otherwise
-        this.calendars.forEach(cal => {
-            if (cal.isVisible !== false) {
-                this.visibleCalendars.add(cal.name);
-            }
-        });
+        // Load data from services
+        const { calendars, visibleCalendars } = await this.calendarService.load();
+        await this.eventService.load();
+        await this.imageService.load();
 
         this.ui.init(this);
-        this.ui.renderCalendars(this.calendars, this.visibleCalendars);
+        this.ui.renderCalendars(calendars, visibleCalendars);
 
         // Mark "Day" view button active by default
         const dayBtn = this.ui.elements.viewSelector.querySelector('button[data-view="timeGridDay"]');
@@ -91,105 +32,19 @@ class CalendarApp {
         }
 
         this.initFullCalendar();
-
-        // Offline by default (no real MEGA sync yet)
         this.ui.setSyncStatus(false);
     }
 
-    /* =======================
-       Helpers
-    ======================= */
-
-    getTimeStripWindow() {
-        // Visible window for right time strip: from now-1h to now+5h, clamped to [0, 24h]
-        const now = new Date();
-        const minutesNow = now.getHours() * 60 + now.getMinutes();
-        let start = minutesNow - 60;
-        let end = minutesNow + 5 * 60;
-        if (start < 0) start = 0;
-        if (end > 24 * 60) end = 24 * 60;
-        return { startMinutes: start, endMinutes: end };
-    }
-
-    getScrollTimeString() {
-        // For day view scrollTime, align with start of the same window
-        const { startMinutes } = this.getTimeStripWindow();
-        const h = Math.floor(startMinutes / 60);
-        const m = startMinutes % 60;
-        const hh = h.toString().padStart(2, '0');
-        const mm = m.toString().padStart(2, '0');
-        return `${hh}:${mm}:00`;
-    }
-
-    pushHistory() {
-        // Save a snapshot of events before a change
-        const snapshot = JSON.stringify(this.events);
-        this.history.push(snapshot);
-        if (this.history.length > this.historyLimit) {
-            this.history.shift();
-        }
-    }
-
-    async undoLastAction() {
-        if (!this.history.length) return;
-        const snapshot = this.history.pop();
-        this.events = JSON.parse(snapshot);
-
-        // Replace events in DB with snapshot
-        await this.db.clear('events');
-        for (const ev of this.events) {
-            await this.db.save('events', ev);
-        }
-        this.refreshCalendarEvents();
-    }
-
-    async extractImageMetadata(dataUrl) {
-        if (!dataUrl) {
-            return { averageColor: '#f5f5f5' };
-        }
-        return new Promise((resolve) => {
-            const img = new Image();
-            img.crossOrigin = 'anonymous';
-            img.onload = () => {
-                const canvas = document.createElement('canvas');
-                canvas.width = 1;
-                canvas.height = 1;
-                const ctx = canvas.getContext('2d');
-                if (!ctx) {
-                    resolve({ averageColor: '#f5f5f5' });
-                    return;
-                }
-                try {
-                    ctx.drawImage(img, 0, 0, 1, 1);
-                    const [r, g, b] = ctx.getImageData(0, 0, 1, 1).data;
-                    const toHex = (value) => value.toString(16).padStart(2, '0');
-                    resolve({ averageColor: `#${toHex(r)}${toHex(g)}${toHex(b)}` });
-                } catch (error) {
-                    resolve({ averageColor: '#f5f5f5' });
-                }
-            };
-            img.onerror = () => resolve({ averageColor: '#f5f5f5' });
-            img.src = dataUrl;
-        });
-    }
-
-    /* =======================
-       Calendar & views
-    ======================= */
-
     initFullCalendar() {
         const calendarEl = this.ui.elements.calendarEl;
-        const now = new Date();
-        const scrollTime = this.getScrollTimeString();
-
         this.fullCalendar = new FullCalendar.Calendar(calendarEl, {
             initialView: 'timeGridDay',
-            initialDate: now,
+            initialDate: new Date(),
             height: '100%',
             nowIndicator: true,
             slotMinTime: '00:00:00',
             slotMaxTime: '24:00:00',
-            scrollTime,
+            scrollTime: this.getScrollTimeString(),
             headerToolbar: {
                 left: 'prev,next today',
                 center: 'title',
@@ -198,128 +53,34 @@ class CalendarApp {
             editable: true,
             selectable: true,
             selectMirror: true,
-            eventContent: (info) => this.renderEventContent(info),
-            eventClick: (info) => {
-                const event = this.events.find(e => e.id === info.event.id);
-                if (event) {
-                    this.ui.populateEventForm(event);
-                    this.ui.elements.eventOverlay.classList.remove('hidden');
-                }
-            },
-            // Click on day cells in month view -> go to that day
-            dateClick: (info) => {
-                const vType = this.fullCalendar.view.type;
-                if (vType.startsWith('dayGrid')) {
-                    this.fullCalendar.changeView('timeGridDay', info.date);
-                    const dayBtn = this.ui.elements.viewSelector.querySelector('button[data-view="timeGridDay"]');
-                    if (dayBtn) {
-                        this.ui.setActiveViewButton(dayBtn);
-                    }
-                }
-            },
-            // Drag-select an empty region on the calendar -> create event with start/end
-            select: (info) => {
-                const vType = this.fullCalendar.view.type;
-                if (vType.includes('timeGrid')) {
-                    this.openEventCreationFromRange(info.start, info.end);
-                }
-            },
-            eventDrop: async (info) => {
-                this.pushHistory();
-                const ev = this.events.find(e => e.id === info.event.id);
-                if (ev) {
-                    ev.start = info.event.start.toISOString();
-                    ev.end = info.event.end ? info.event.end.toISOString() : ev.end;
-                    ev.updatedAt = Date.now();
-                    await this.db.save('events', ev);
-                    this.refreshCalendarEvents();
-                }
-            },
-            eventResize: async (info) => {
-                this.pushHistory();
-                const ev = this.events.find(e => e.id === info.event.id);
-                if (ev) {
-                    ev.start = info.event.start.toISOString();
-                    ev.end = info.event.end ? info.event.end.toISOString() : ev.end;
-                    ev.updatedAt = Date.now();
-                    await this.db.save('events', ev);
-                    this.refreshCalendarEvents();
-                }
-            }
+            eventContent: this.renderEventContent.bind(this),
+            eventClick: this.handleEventClick.bind(this),
+            dateClick: this.handleDateClick.bind(this),
+            select: this.handleSelect.bind(this),
+            eventDrop: this.handleEventModify.bind(this),
+            eventResize: this.handleEventModify.bind(this)
         });
 
         this.refreshCalendarEvents();
         this.fullCalendar.render();
     }
 
-    changeView(view) {
-        if (!this.fullCalendar) return;
-        this.fullCalendar.changeView(view);
-    }
-
     refreshCalendarEvents() {
         if (!this.fullCalendar) return;
-
         this.fullCalendar.removeAllEvents();
 
-        const visibleEvents = this.events.filter(ev =>
-            this.visibleCalendars.has(ev.calendar)
+        const visibleEvents = this.eventService.getAll().filter(ev =>
+            this.calendarService.getVisible().has(ev.calendar)
         );
 
         visibleEvents.forEach(ev => {
-            const isRecurring = ev.recurrence && ev.recurrence.type !== 'none';
-
-            const fcEvent = {
-                id: ev.id,
-                title: ev.name,
-                editable: !isRecurring, // Disable drag/drop/resize for recurring events
-                extendedProps: { calendar: ev.calendar }
-            };
-
-            if (isRecurring) {
-                const recurrence = ev.recurrence;
-                const rrule = {
-                    dtstart: ev.start,
-                    until: recurrence.until || null,
-                };
-
-                // For recurring events, duration is used instead of start/end times on each instance
-                const duration = new Date(ev.end) - new Date(ev.start);
-                fcEvent.duration = { milliseconds: duration };
-
-                switch (recurrence.type) {
-                    case 'daily':
-                        rrule.freq = 'daily';
-                        break;
-                    case 'weekly':
-                        rrule.freq = 'weekly';
-                        break;
-                    case 'biweekly':
-                        rrule.freq = 'weekly';
-                        rrule.interval = 2;
-                        break;
-                    case 'custom':
-                        rrule.freq = 'weekly';
-                        rrule.interval = recurrence.intervalWeeks || 1;
-                        // Map number (0=Sun) to RRULE string ('SU', 'MO'...)
-                        rrule.byweekday = recurrence.days.map(d => ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'][d]);
-                        break;
-                }
-                
-                fcEvent.rrule = rrule;
-            } else {
-                // For non-recurring events
-                fcEvent.start = ev.start;
-                fcEvent.end = ev.end;
-            }
-
-            this.fullCalendar.addEvent(fcEvent);
+            this.fullCalendar.addEvent(this.formatEventForCalendar(ev));
         });
     }
 
     renderEventContent(info) {
-        const eventData = this.events.find(e => e.id === info.event.id);
-        const imageEntry = this.findEventImage(eventData);
+        const eventData = this.eventService.find(info.event.id);
+        const imageEntry = this.imageService.findEventImage(eventData);
         const wrapper = document.createElement('div');
         wrapper.className = 'custom-event-content';
 
@@ -340,286 +101,159 @@ class CalendarApp {
         return { domNodes: [wrapper] };
     }
 
-    findEventImage(event) {
-        if (!event) return null;
-        const normalizedName = (event.name || '').trim().toLowerCase();
-        const categoryMatches = this.images.filter(img => img.category && img.category === normalizedName);
-        let match = categoryMatches.find(img => img.calendar === event.calendar);
-        if (!match) {
-            match = categoryMatches.find(img => img.calendar === 'all');
+    // #region FullCalendar Event Handlers
+    handleEventClick(info) {
+        const event = this.eventService.find(info.event.id);
+        if (event) {
+            this.ui.populateEventForm(event);
+            this.ui.toggleModal(this.ui.elements.eventOverlay, true);
         }
-        if (match) {
-            return match;
-        }
-        return this.images.find(img => !img.category && img.calendar === event.calendar) || null;
     }
 
-    /* =======================
-       Calendars
-    ======================= */
-
-    async addCalendar(name) {
-        if (this.calendars.find(c => c.name === name)) {
-            return;
+    handleDateClick(info) {
+        if (this.fullCalendar.view.type.startsWith('dayGrid')) {
+            this.fullCalendar.changeView('timeGridDay', info.date);
+            const dayBtn = this.ui.elements.viewSelector.querySelector('button[data-view="timeGridDay"]');
+            if (dayBtn) this.ui.setActiveViewButton(dayBtn);
         }
-        const cal = { name, isVisible: true };
-        await this.db.save('calendars', cal);
-        this.calendars.push(cal);
-        this.visibleCalendars.add(name);
-        this.ui.renderCalendars(this.calendars, this.visibleCalendars);
-        this.refreshCalendarEvents();
+    }
+
+    handleSelect(info) {
+        if (this.fullCalendar.view.type.includes('timeGrid')) {
+            this.openEventCreationFromRange(info.start, info.end);
+        }
+    }
+
+    async handleEventModify(info) {
+        const event = this.eventService.find(info.event.id);
+        if (event) {
+            await this.eventService.save({
+                ...event,
+                start: info.event.start.toISOString(),
+                end: info.event.end ? info.event.end.toISOString() : event.end
+            });
+            this.refreshCalendarEvents();
+        }
+    }
+    // #endregion
+
+    // #region UI-triggered Actions
+    async addCalendar(name) {
+        const newCal = await this.calendarService.add(name);
+        if (newCal) {
+            this.ui.renderCalendars(this.calendarService.getAll(), this.calendarService.getVisible());
+            this.refreshCalendarEvents();
+        }
     }
 
     async setCalendarVisibility(calendarName, isVisible) {
-        if (isVisible) {
-            this.visibleCalendars.add(calendarName);
-        } else {
-            this.visibleCalendars.delete(calendarName);
-        }
-
-        const cal = this.calendars.find(c => c.name === calendarName);
-        if (cal) {
-            cal.isVisible = isVisible;
-            await this.db.save('calendars', cal);
-        }
-
+        await this.calendarService.setVisibility(calendarName, isVisible);
         this.refreshCalendarEvents();
     }
 
-    /* =======================
-       Events
-    ======================= */
+    async undoLastAction() {
+        await this.eventService.undo();
+        this.refreshCalendarEvents();
+    }
 
     async saveEventFromForm() {
-        const els = this.ui.elements;
+        const formData = this.ui.getEventFormData();
+        if (!formData) return;
 
-        const id = els.eventId.value || null;
-        const calendar = els.eventCalendar.value;
-        const name = els.eventName.value.trim();
-        const date = els.eventDate.value;
-        const startTime = els.eventStartTime.value;
-        const endTime = els.eventEndTime.value;
-        if (!calendar || !name || !date || !startTime || !endTime) {
-            alert('Please fill all required fields.');
-            return;
-        }
-
-        const recurrencePayload = this.ui.getRecurrencePayload();
-        if (recurrencePayload.type === 'custom' && (!recurrencePayload.days || !recurrencePayload.days.length)) {
-            alert('Please select at least one weekday for custom recurrence.');
-            return;
-        }
-
-        const startISO = new Date(date + 'T' + startTime + ':00').toISOString();
-        const endISO = new Date(date + 'T' + endTime + ':00').toISOString();
-
-        this.pushHistory();
-
-        let eventObj;
-        if (id) {
-            // Update existing
-            eventObj = this.events.find(e => e.id === id);
-            if (!eventObj) {
-                eventObj = this.createEmptyEvent();
-                eventObj.id = id;
-                this.events.push(eventObj);
-            }
-        } else {
-            // New event
-            eventObj = this.createEmptyEvent();
-            eventObj.id = this.generateEventId(calendar, name, startISO);
-            this.events.push(eventObj);
-        }
-
-        eventObj.calendar = calendar;
-        eventObj.name = name;
-        eventObj.start = startISO;
-        eventObj.end = endISO;
-        eventObj.recurrence = { ...recurrencePayload };
-        if (eventObj.hasImage === undefined) {
-            eventObj.hasImage = false;
-        }
-
-        await this.db.save('events', eventObj);
+        await this.eventService.save(formData);
         this.refreshCalendarEvents();
     }
 
-    createEmptyEvent() {
-        return {
-            id: '',
-            calendar: '',
-            name: '',
-            start: '',
-            end: '',
-            createdAt: null,
-            updatedAt: null,
-            recurrence: {
-                type: 'none',
-                days: [],
-                intervalWeeks: 1,
-                until: null
-            },
-            hasImage: false
+    async saveCalendarImage(calendarName, dataUrl, crop) {
+        await this.imageService.saveCalendarImage(calendarName, dataUrl, crop);
+        this.refreshCalendarEvents();
+    }
+
+    async saveCategoryImage(scope, category, dataUrl, crop) {
+        await this.imageService.saveCategoryImage(scope, category, dataUrl, crop);
+
+        // Mark matching events as having an image
+        const matchingEvents = this.eventService.getAll().filter(ev =>
+            ev.name.toLowerCase() === category.trim().toLowerCase() &&
+            (scope === 'all' || ev.calendar === scope)
+        );
+        for (const ev of matchingEvents) {
+            await this.eventService.save({ ...ev, hasImage: true });
+        }
+
+        this.refreshCalendarEvents();
+    }
+    // #endregion
+
+    // #region Utilities
+    formatEventForCalendar(ev) {
+        const isRecurring = ev.recurrence && ev.recurrence.type !== 'none';
+        const fcEvent = {
+            id: ev.id,
+            title: ev.name,
+            editable: !isRecurring,
+            extendedProps: { calendar: ev.calendar }
         };
-    }
 
-    generateEventId(calendar, name, startISO) {
-        const base = calendar + '|' + name + '|' + startISO;
-        let hash = 0;
-        for (let i = 0; i < base.length; i++) {
-            hash = ((hash << 5) - hash) + base.charCodeAt(i);
-            hash |= 0;
+        if (isRecurring) {
+            const { type, until, intervalWeeks, days } = ev.recurrence;
+            fcEvent.duration = { milliseconds: new Date(ev.end) - new Date(ev.start) };
+            fcEvent.rrule = {
+                dtstart: ev.start,
+                until: until || null,
+                freq: type === 'daily' ? 'daily' : 'weekly',
+                interval: type === 'biweekly' ? 2 : (intervalWeeks || 1),
+                byweekday: type === 'custom' ? days.map(d => ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'][d]) : undefined
+            };
+        } else {
+            fcEvent.start = ev.start;
+            fcEvent.end = ev.end;
         }
-        return 'ev_' + Math.abs(hash);
+
+        return fcEvent;
     }
 
-    resolveConflict(localEvent, remoteEvent) {
-        if ((remoteEvent.updatedAt || 0) > (localEvent.updatedAt || 0)) {
-            return remoteEvent;
-        }
-        return localEvent;
+    getScrollTimeString() {
+        const { startMinutes } = this.getTimeStripWindow();
+        const h = Math.floor(startMinutes / 60);
+        const m = startMinutes % 60;
+        return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:00`;
     }
 
-    /**
-     * Called when user clicks in the right sidebar time strip.
-     * Uses current day from the calendar and a 30-min default duration.
-     */
+    getTimeStripWindow() {
+        const now = new Date();
+        const minutesNow = now.getHours() * 60 + now.getMinutes();
+        let start = Math.max(0, minutesNow - 60);
+        let end = Math.min(24 * 60, minutesNow + 5 * 60);
+        return { startMinutes: start, endMinutes: end };
+    }
+
     openEventCreationAt(hour, minute) {
         const baseDate = this.fullCalendar ? this.fullCalendar.getDate() : new Date();
-        const year = baseDate.getFullYear();
-        const month = (baseDate.getMonth() + 1).toString().padStart(2, '0');
-        const day = baseDate.getDate().toString().padStart(2, '0');
-        const hh = hour.toString().padStart(2, '0');
-        const mm = minute.toString().padStart(2, '0');
+        const startDate = new Date(baseDate);
+        startDate.setHours(hour, minute, 0, 0);
 
-        const startDateStr = `${year}-${month}-${day}`;
-        const startTimeStr = `${hh}:${mm}`;
+        const endDate = new Date(startDate.getTime() + 30 * 60000); // +30 minutes
 
-        // Default duration: 30 minutes
-        const totalMinutes = hour * 60 + minute + 30;
-        const endHour = Math.floor(totalMinutes / 60) % 24;
-        const endMinute = totalMinutes % 60;
-        const ehh = endHour.toString().padStart(2, '0');
-        const emm = endMinute.toString().padStart(2, '0');
-        const endTimeStr = `${ehh}:${emm}`;
-
-        const defaultCalendar = this.calendars[0]?.name || 'Main';
-
-        this.ui.populateEventForm({
-            id: '',
-            calendar: defaultCalendar,
-            name: '',
-            start: `${startDateStr}T${startTimeStr}:00`,
-            end: `${startDateStr}T${endTimeStr}:00`,
-            recurrence: this.createEmptyEvent().recurrence
-        });
-        this.ui.elements.eventOverlay.classList.remove('hidden');
+        this.openEventCreationFromRange(startDate, endDate);
     }
 
-    /**
-     * Called when user click-drags on empty time slots in the calendar.
-     * Start = press position, End = release position.
-     */
     openEventCreationFromRange(start, end) {
-        const year = start.getFullYear();
-        const month = (start.getMonth() + 1).toString().padStart(2, '0');
-        const day = start.getDate().toString().padStart(2, '0');
-
-        const sh = start.getHours().toString().padStart(2, '0');
-        const sm = start.getMinutes().toString().padStart(2, '0');
-        const eh = end.getHours().toString().padStart(2, '0');
-        const em = end.getMinutes().toString().padStart(2, '0');
-
-        const dateStr = `${year}-${month}-${day}`;
-        const startTimeStr = `${sh}:${sm}`;
-        const endTimeStr = `${eh}:${em}`;
-
-        const defaultCalendar = this.calendars[0]?.name || 'Main';
-
-        this.ui.populateEventForm({
+        const defaultCalendar = this.calendarService.getAll()[0]?.name || 'Main';
+        const eventData = {
             id: '',
             calendar: defaultCalendar,
             name: '',
-            start: `${dateStr}T${startTimeStr}:00`,
-            end: `${dateStr}T${endTimeStr}:00`,
-            recurrence: this.createEmptyEvent().recurrence
-        });
-        this.ui.elements.eventOverlay.classList.remove('hidden');
+            start: start.toISOString(),
+            end: end.toISOString(),
+            recurrence: { type: 'none' }
+        };
+        this.ui.populateEventForm(eventData);
+        this.ui.toggleModal(this.ui.elements.eventOverlay, true);
     }
 
     setOnlineStatus(online) {
         this.ui.setSyncStatus(online);
     }
-
-    /* =======================
-       Images
-    ======================= */
-
-    async saveCalendarImage(calendarName, dataUrl, crop = {}) {
-        const id = `calendar:${calendarName}:__self__`;
-        const metadata = await this.extractImageMetadata(dataUrl);
-        const normalizedCropX = Number.isFinite(Number(crop.cropX)) ? Number(crop.cropX) : 50;
-        const normalizedCropY = Number.isFinite(Number(crop.cropY)) ? Number(crop.cropY) : 50;
-        const imageEntry = {
-            id,
-            calendar: calendarName,
-            category: null,
-            url: dataUrl,
-            cropX: normalizedCropX,
-            cropY: normalizedCropY,
-            averageColor: metadata.averageColor,
-            createdAt: Date.now(),
-            updatedAt: Date.now()
-        };
-        await this.db.save('images', imageEntry);
-
-        const normalizedEntry = this.normalizeImageEntry(imageEntry);
-        const existingIndex = this.images.findIndex(img => img.id === id);
-        if (existingIndex >= 0) {
-            this.images[existingIndex] = normalizedEntry;
-        } else {
-            this.images.push(normalizedEntry);
-        }
-        this.refreshCalendarEvents();
-    }
-
-    async saveCategoryImage(scope, category, dataUrl, crop = {}) {
-        const normalizedCat = category.trim().toLowerCase();
-        const id = `category:${scope}:${normalizedCat}`;
-        const metadata = await this.extractImageMetadata(dataUrl);
-        const normalizedCropX = Number.isFinite(Number(crop.cropX)) ? Number(crop.cropX) : 50;
-        const normalizedCropY = Number.isFinite(Number(crop.cropY)) ? Number(crop.cropY) : 50;
-        const imageEntry = {
-            id,
-            calendar: scope,
-            category: normalizedCat,
-            url: dataUrl,
-            cropX: normalizedCropX,
-            cropY: normalizedCropY,
-            averageColor: metadata.averageColor,
-            createdAt: Date.now(),
-            updatedAt: Date.now()
-        };
-        await this.db.save('images', imageEntry);
-
-        const normalizedEntry = this.normalizeImageEntry(imageEntry);
-        const existingIndex = this.images.findIndex(img => img.id === id);
-        if (existingIndex >= 0) {
-            this.images[existingIndex] = normalizedEntry;
-        } else {
-            this.images.push(normalizedEntry);
-        }
-
-        const matchingEvents = this.events.filter(ev =>
-            ev.name.toLowerCase() === normalizedCat &&
-            (scope === 'all' || ev.calendar === scope)
-        );
-
-        await Promise.all(matchingEvents.map(ev => {
-            ev.hasImage = true;
-            return this.db.save('events', ev);
-        }));
-
-        this.refreshCalendarEvents();
-    }
+    // #endregion
 }
