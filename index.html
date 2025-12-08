@@ -3,149 +3,229 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>My MEGA Calendar</title>
+    <title>My MEGA Calendar Pro</title>
 
     <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js'></script>
     
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; padding: 0; background: #f0f2f5; height: 100vh; display: flex; flex-direction: column; }
+        :root {
+            --primary: #d9272e;
+            --bg: #f0f2f5;
+            --modal-bg: rgba(0, 0, 0, 0.5);
+        }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; padding: 0; background: var(--bg); height: 100vh; display: flex; flex-direction: column; }
         
-        /* Login Overlay */
-        #login-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: white; z-index: 1000; display: flex; justify-content: center; align-items: center; flex-direction: column; }
-        .login-box { background: white; padding: 2rem; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); width: 300px; text-align: center; border: 1px solid #ddd; }
+        /* --- Login Overlay --- */
+        #login-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: white; z-index: 2000; display: flex; justify-content: center; align-items: center; flex-direction: column; }
+        .login-box { background: white; padding: 2.5rem; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); width: 320px; text-align: center; border: 1px solid #eee; }
         .login-box h2 { margin-top: 0; color: #333; }
         .input-group { margin-bottom: 1rem; text-align: left; }
-        .input-group label { display: block; margin-bottom: 0.5rem; font-size: 0.9rem; color: #666; }
-        .input-group input { width: 100%; padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
-        button#login-btn { width: 100%; padding: 0.75rem; background: #d9272e; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 1rem; }
-        button#login-btn:hover { background: #b01f25; }
-        button#login-btn:disabled { background: #ccc; cursor: not-allowed; }
-        .error-msg { color: red; margin-top: 1rem; font-size: 0.9rem; display: none; }
+        .input-group label { display: block; margin-bottom: 0.5rem; font-size: 0.85rem; color: #666; font-weight: 600; }
+        .input-group input, .input-group select { width: 100%; padding: 0.75rem; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; font-size: 1rem; }
+        .input-group input:focus, .input-group select:focus { border-color: var(--primary); outline: none; }
         
-        /* Calendar Container */
-        #calendar-container { flex: 1; padding: 20px; max-width: 1100px; margin: 0 auto; width: 100%; box-sizing: border-box; display: none; }
-        #calendar { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); height: 100%; }
+        button.btn-primary { width: 100%; padding: 0.75rem; background: var(--primary); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 1rem; transition: background 0.2s; }
+        button.btn-primary:hover { background: #b01f25; }
+        button.btn-primary:disabled { background: #ccc; cursor: not-allowed; }
         
-        /* Loading Spinner */
-        .spinner { border: 4px solid #f3f3f3; border-top: 4px solid #d9272e; border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; margin: 10px auto; display: none; }
+        button.btn-secondary { background: #e5e7eb; color: #374151; padding: 0.6rem 1rem; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; }
+        button.btn-secondary:hover { background: #d1d5db; }
+        
+        button.btn-danger { background: #fee2e2; color: #991b1b; padding: 0.6rem 1rem; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; float: left; }
+        button.btn-danger:hover { background: #fecaca; }
+
+        .error-msg { color: #dc2626; margin-top: 1rem; font-size: 0.9rem; display: none; background: #fee2e2; padding: 10px; border-radius: 4px; }
+        
+        /* --- Layout --- */
+        #calendar-container { flex: 1; padding: 20px; max-width: 1200px; margin: 0 auto; width: 100%; box-sizing: border-box; display: none; position: relative; }
+        #calendar { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); height: 100%; }
+        
+        #header-bar { display: none; justify-content: space-between; align-items: center; padding: 10px 30px; background: white; border-bottom: 1px solid #ddd; }
+        .legend { display: flex; gap: 15px; font-size: 0.85rem; align-items: center; }
+        .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 5px; }
+
+        /* --- Event Modal --- */
+        #event-modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--modal-bg); z-index: 1000; display: none; justify-content: center; align-items: center; }
+        .modal-content { background: white; padding: 25px; border-radius: 12px; width: 350px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); }
+        .modal-title { font-size: 1.25rem; font-weight: bold; margin-bottom: 1rem; }
+        .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+
+        /* Spinner */
+        .spinner { border: 3px solid #f3f3f3; border-top: 3px solid var(--primary); border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite; display: inline-block; vertical-align: middle; margin-left: 10px; display: none; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        
-        /* Header Info */
-        #user-info { text-align: right; padding: 10px 20px; font-size: 0.9rem; color: #666; display: none; }
     </style>
 </head>
 <body>
 
     <div id="login-overlay">
         <div class="login-box">
-            <h2>MEGA Calendar</h2>
-            <p style="font-size: 0.8rem; color: #666; margin-bottom: 20px;">Enter your MEGA.nz credentials to sync.</p>
+            <h2 style="color: #d9272e;">MEGA Calendar</h2>
+            <p style="font-size: 0.9rem; color: #666; margin-bottom: 20px;">Secure, Client-Side Encrypted Sync</p>
+            
             <div class="input-group">
-                <label>Email</label>
-                <input type="email" id="email" placeholder="you@example.com">
+                <label>Email Address</label>
+                <input type="email" id="mega-email" placeholder="email@example.com">
             </div>
             <div class="input-group">
                 <label>Password</label>
-                <input type="password" id="password" placeholder="********">
+                <input type="password" id="mega-password" placeholder="••••••••">
             </div>
-            <button id="login-btn">Login & Sync</button>
-            <div class="spinner" id="loading-spinner"></div>
-            <div class="error-msg" id="error-msg">Authentication failed. Check credentials.</div>
+            
+            <button id="login-btn" class="btn-primary">
+                Login & Sync <div class="spinner" id="login-spinner"></div>
+            </button>
+            <div class="error-msg" id="login-error"></div>
         </div>
     </div>
 
-    <div id="user-info">Logged in as: <span id="user-email"></span> | <a href="#" onclick="location.reload()">Logout</a></div>
+    <div id="header-bar">
+        <div class="legend">
+            <span><b>Categories:</b></span>
+            <span><span class="dot" style="background:#3b82f6"></span>Work</span>
+            <span><span class="dot" style="background:#10b981"></span>Personal</span>
+            <span><span class="dot" style="background:#f59e0b"></span>Family</span>
+            <span><span class="dot" style="background:#ef4444"></span>Urgent</span>
+        </div>
+        <div style="font-size: 0.9rem;">
+            Logged in as <b id="user-display"></b> | <a href="#" onclick="location.reload()" style="color: #666;">Logout</a>
+        </div>
+    </div>
+
     <div id="calendar-container">
         <div id="calendar"></div>
     </div>
 
-    <script type="module">
-        // Import megajs from a browser-compatible CDN
-        import { Storage, File } from 'https://unpkg.com/megajs@1.3.5/dist/main.browser-es.mjs';
+    <div id="event-modal-overlay">
+        <div class="modal-content">
+            <div class="modal-title" id="modal-title-text">Add Event</div>
+            
+            <input type="hidden" id="event-id">
+            <input type="hidden" id="event-start">
+            <input type="hidden" id="event-end">
+            <input type="hidden" id="event-allDay">
 
-        const CALENDAR_FILENAME = 'calendar_data.json';
+            <div class="input-group">
+                <label>Event Title</label>
+                <input type="text" id="event-title-input" placeholder="e.g. Meeting with Client">
+            </div>
+
+            <div class="input-group">
+                <label>Category</label>
+                <select id="event-category-input">
+                    <option value="work">Work (Blue)</option>
+                    <option value="personal">Personal (Green)</option>
+                    <option value="family">Family (Orange)</option>
+                    <option value="urgent">Urgent (Red)</option>
+                </select>
+            </div>
+
+            <div class="modal-actions">
+                <button id="delete-btn" class="btn-danger" style="display:none;">Delete</button>
+                <div style="flex:1"></div> <button class="btn-secondary" onclick="closeModal()">Cancel</button>
+                <button class="btn-primary" style="width: auto;" onclick="saveEventFromModal()">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { Storage } from 'https://unpkg.com/megajs@1.3.5/dist/main.browser-es.mjs';
+
+        // --- Configuration ---
+        const FILENAME = 'calendar_data_v2.json';
+        const CATEGORY_COLORS = {
+            'work': '#3b82f6',     // Blue
+            'personal': '#10b981', // Green
+            'family': '#f59e0b',   // Orange
+            'urgent': '#ef4444'    // Red
+        };
+
+        // --- State ---
         let megaStorage = null;
         let calendar = null;
+        let isSyncing = false;
 
         // --- DOM Elements ---
-        const loginBtn = document.getElementById('login-btn');
-        const spinner = document.getElementById('loading-spinner');
-        const errorMsg = document.getElementById('error-msg');
-        const overlay = document.getElementById('login-overlay');
-        const container = document.getElementById('calendar-container');
-        const userInfo = document.getElementById('user-info');
+        const els = {
+            loginOverlay: document.getElementById('login-overlay'),
+            calendarContainer: document.getElementById('calendar-container'),
+            header: document.getElementById('header-bar'),
+            loginBtn: document.getElementById('login-btn'),
+            spinner: document.getElementById('login-spinner'),
+            errorMsg: document.getElementById('login-error'),
+            userDisplay: document.getElementById('user-display'),
+            
+            // Modal
+            modalOverlay: document.getElementById('event-modal-overlay'),
+            modalTitle: document.getElementById('modal-title-text'),
+            inpTitle: document.getElementById('event-title-input'),
+            inpCat: document.getElementById('event-category-input'),
+            inpId: document.getElementById('event-id'),
+            inpStart: document.getElementById('event-start'),
+            inpEnd: document.getElementById('event-end'),
+            inpAllDay: document.getElementById('event-allDay'),
+            btnDelete: document.getElementById('delete-btn')
+        };
 
-        // --- Event Listeners ---
-        loginBtn.addEventListener('click', handleLogin);
+        // --- Expose functions to window for HTML buttons ---
+        window.closeModal = () => els.modalOverlay.style.display = 'none';
+        window.saveEventFromModal = handleModalSave;
+        
+        // --- Login Logic ---
+        els.loginBtn.addEventListener('click', async () => {
+            const email = document.getElementById('mega-email').value;
+            const pass = document.getElementById('mega-password').value;
+            if(!email || !pass) return;
 
-        async function handleLogin() {
-            const email = document.getElementById('email').value;
-            const password = document.getElementById('password').value;
-
-            if (!email || !password) return;
-
-            setLoading(true);
-            errorMsg.style.display = 'none';
+            els.loginBtn.disabled = true;
+            els.spinner.style.display = 'inline-block';
+            els.errorMsg.style.display = 'none';
 
             try {
-                // 1. Initialize MEGA Storage
-                megaStorage = new Storage({
-                    email: email,
-                    password: password,
-                    keepalive: true
-                });
-
-                // 2. Wait for connection and handshake
+                // Initialize MEGA
+                megaStorage = new Storage({ email, password: pass, keepalive: true });
+                
                 await new Promise((resolve, reject) => {
                     megaStorage.on('ready', resolve);
                     megaStorage.on('error', reject);
                 });
 
-                // 3. Login successful
-                console.log('Logged into MEGA');
-                document.getElementById('user-email').innerText = email;
-                
-                // Switch UI
-                overlay.style.display = 'none';
-                container.style.display = 'block';
-                userInfo.style.display = 'block';
+                // Success
+                els.userDisplay.innerText = email;
+                els.loginOverlay.style.display = 'none';
+                els.header.style.display = 'flex';
+                els.calendarContainer.style.display = 'block';
 
-                // 4. Load Calendar Data
                 await initCalendar();
 
             } catch (err) {
                 console.error(err);
-                errorMsg.innerText = "Login failed: " + (err.message || "Unknown error");
-                errorMsg.style.display = 'block';
-                setLoading(false);
+                els.errorMsg.innerText = "Login Failed: " + (err.message || "Check credentials");
+                els.errorMsg.style.display = 'block';
+                els.loginBtn.disabled = false;
+                els.spinner.style.display = 'none';
             }
-        }
+        });
 
-        function setLoading(isLoading) {
-            loginBtn.disabled = isLoading;
-            loginBtn.innerText = isLoading ? 'Decryption in progress...' : 'Login & Sync';
-            spinner.style.display = isLoading ? 'block' : 'none';
-        }
-
+        // --- Calendar Logic ---
         async function initCalendar() {
-            let initialEvents = [];
+            let events = [];
 
-            // Check if our data file exists in MEGA
-            const existingFile = megaStorage.root.children.find(f => f.name === CALENDAR_FILENAME);
-
-            if (existingFile) {
-                console.log('Found existing calendar file, downloading...');
-                const data = await existingFile.downloadBuffer();
+            // 1. Download Data from MEGA
+            const file = megaStorage.root.children.find(f => f.name === FILENAME);
+            if(file) {
+                const data = await file.downloadBuffer();
                 try {
-                    initialEvents = JSON.parse(data.toString());
-                } catch(e) {
-                    console.error("Corrupt JSON", e);
-                }
-            } else {
-                console.log('No calendar file found. A new one will be created on first save.');
+                    const rawEvents = JSON.parse(data.toString());
+                    // Map plain JSON to FullCalendar events with colors
+                    events = rawEvents.map(e => ({
+                        ...e,
+                        backgroundColor: CATEGORY_COLORS[e.extendedProps?.category] || '#888',
+                        borderColor: CATEGORY_COLORS[e.extendedProps?.category] || '#888'
+                    }));
+                } catch(e) { console.error("Data parse error", e); }
             }
 
-            // Render FullCalendar
+            // 2. Render Calendar
             const calendarEl = document.getElementById('calendar');
             calendar = new FullCalendar.Calendar(calendarEl, {
                 initialView: 'dayGridMonth',
@@ -154,75 +234,131 @@
                     center: 'title',
                     right: 'dayGridMonth,timeGridWeek,timeGridDay'
                 },
+                events: events,
                 editable: true,
                 selectable: true,
-                events: initialEvents, // Load downloaded events
-                
-                // Add Event
+                height: '100%',
+
+                // CLICK ON DATE -> NEW EVENT
                 select: function(info) {
-                    const title = prompt('Enter Event Title:');
-                    if (title) {
-                        calendar.addEvent({
-                            title: title,
-                            start: info.startStr,
-                            end: info.endStr,
-                            allDay: info.allDay
-                        });
-                        saveToMega(); // Auto-save
-                    }
-                    calendar.unselect();
+                    openModal(null, info);
                 },
 
-                // Edit/Delete Event
+                // CLICK ON EVENT -> EDIT
                 eventClick: function(info) {
-                    if (confirm(`Delete event '${info.event.title}'?`)) {
-                        info.event.remove();
-                        saveToMega(); // Auto-save
-                    }
+                    openModal(info.event, null);
                 },
 
-                // Drag & Drop / Resize
-                eventDrop: function(info) { saveToMega(); },
-                eventResize: function(info) { saveToMega(); }
+                // DRAG -> SAVE
+                eventDrop: () => syncToMega(),
+                eventResize: () => syncToMega()
             });
 
             calendar.render();
-            // Workaround for FullCalendar sizing in flex container
-            setTimeout(() => calendar.updateSize(), 100); 
+            setTimeout(() => calendar.updateSize(), 200);
         }
 
-        async function saveToMega() {
-            if (!calendar || !megaStorage) return;
+        // --- Modal & Event Handling ---
+        function openModal(existingEvent, selectionInfo) {
+            els.modalOverlay.style.display = 'flex';
+            
+            if (existingEvent) {
+                // EDIT MODE
+                els.modalTitle.innerText = "Edit Event";
+                els.inpId.value = existingEvent.id || ''; // FullCalendar assigns IDs automatically if missing
+                els.inpTitle.value = existingEvent.title;
+                els.inpCat.value = existingEvent.extendedProps.category || 'personal';
+                els.btnDelete.style.display = 'block';
+                
+                // Bind delete action dynamically
+                els.btnDelete.onclick = () => {
+                    if(confirm("Delete this event?")) {
+                        existingEvent.remove();
+                        syncToMega();
+                        closeModal();
+                    }
+                };
 
-            // 1. Serialize all events
-            const events = calendar.getEvents().map(e => ({
+            } else {
+                // CREATE MODE
+                els.modalTitle.innerText = "New Event";
+                els.inpId.value = ''; // New event
+                els.inpTitle.value = '';
+                els.inpCat.value = 'personal'; // Default
+                els.inpStart.value = selectionInfo.startStr;
+                els.inpEnd.value = selectionInfo.endStr;
+                els.inpAllDay.value = selectionInfo.allDay;
+                els.btnDelete.style.display = 'none';
+            }
+        }
+
+        function handleModalSave() {
+            const title = els.inpTitle.value;
+            const category = els.inpCat.value;
+            const id = els.inpId.value;
+
+            if (!title) { alert("Please enter a title"); return; }
+
+            const color = CATEGORY_COLORS[category];
+
+            if (id) {
+                // UPDATE existing
+                const event = calendar.getEventById(id);
+                if (event) {
+                    event.setProp('title', title);
+                    event.setProp('backgroundColor', color);
+                    event.setProp('borderColor', color);
+                    event.setExtendedProp('category', category);
+                }
+            } else {
+                // CREATE new
+                calendar.addEvent({
+                    id: Date.now().toString(), // Simple unique ID
+                    title: title,
+                    start: els.inpStart.value,
+                    end: els.inpEnd.value,
+                    allDay: els.inpAllDay.value === 'true',
+                    backgroundColor: color,
+                    borderColor: color,
+                    extendedProps: { category: category }
+                });
+            }
+
+            closeModal();
+            syncToMega();
+        }
+
+        // --- MEGA Sync ---
+        async function syncToMega() {
+            if (isSyncing) return;
+            isSyncing = true;
+            console.log('Syncing...');
+
+            // Extract pure data to save
+            const eventsToSave = calendar.getEvents().map(e => ({
+                id: e.id,
                 title: e.title,
                 start: e.start,
                 end: e.end,
-                allDay: e.allDay
+                allDay: e.allDay,
+                extendedProps: { category: e.extendedProps.category } // Save category
             }));
-            
-            const jsonString = JSON.stringify(events);
-            const buffer = new TextEncoder().encode(jsonString); // Convert to buffer
 
-            // 2. Find existing file to overwrite, or upload new
-            const existingFile = megaStorage.root.children.find(f => f.name === CALENDAR_FILENAME);
-
-            // Simple visual feedback in console (or add a toast notification here)
-            console.log('Syncing to MEGA...');
+            const buffer = new TextEncoder().encode(JSON.stringify(eventsToSave));
             
             try {
-                if (existingFile) {
-                    // Upload/Overwrite logic (delete old, upload new is safest with simple API usage)
-                    // megajs upload usually handles overwrite if configured, but let's be explicit
-                    await existingFile.delete();
-                } 
-                
-                await megaStorage.upload(CALENDAR_FILENAME, buffer).complete;
-                console.log('Sync Complete!');
+                // Find and delete old file, upload new
+                // (Robust method: delete then upload prevents conflicts in simple implementations)
+                const oldFile = megaStorage.root.children.find(f => f.name === FILENAME);
+                if (oldFile) await oldFile.delete();
+
+                await megaStorage.upload(FILENAME, buffer).complete;
+                console.log('Sync Saved.');
             } catch (err) {
-                console.error('Sync failed', err);
-                alert('Failed to save to MEGA. Check console.');
+                console.error("Sync Error", err);
+                alert("Could not save to MEGA. Check internet connection.");
+            } finally {
+                isSyncing = false;
             }
         }
     </script>
