@@ -98,27 +98,7 @@
     </div>
 
     <script type="module">
-        // 1. IMPORT MEGAJS
-        // We use a try/catch on import to detect if the CDN is blocked
-        let Storage;
-        try {
-            log("Importing megajs library...");
-            const module = await import('https://unpkg.com/megajs@1.3.5/dist/main.browser-es.mjs');
-            Storage = module.Storage;
-            log("Library imported successfully.", "success");
-        } catch (e) {
-            log("CRITICAL ERROR: Could not load megajs library. Check ad-blockers or internet.", "error");
-            console.error(e);
-        }
-
-        // --- VARS ---
-        const FILENAME = 'calendar_data_v2.json';
-        const COLORS = { 'work': '#3b82f6', 'personal': '#10b981', 'urgent': '#ef4444' };
-        let mega = null;
-        let cal = null;
-        let selectedInfo = null;
-
-        // --- DOM ---
+        // 1. SETUP UI & LOGGING FIRST (So we can catch errors immediately)
         const ui = {
             login: document.getElementById('login-overlay'),
             app: document.getElementById('calendar-container'),
@@ -131,95 +111,96 @@
             id: document.getElementById('evt-id')
         };
 
-        // --- LOGGING HELPER ---
         function log(msg, type = 'normal') {
             const date = new Date().toLocaleTimeString();
             const div = document.createElement('div');
             div.className = 'log-line ' + (type === 'error' ? 'log-error' : type === 'success' ? 'log-success' : '');
             div.innerText = `[${date}] ${msg}`;
-            ui.console.appendChild(div);
-            ui.console.scrollTop = ui.console.scrollHeight; // Auto scroll
-            console.log(msg); // Also print to browser devtools
+            
+            // Safety check: only append if console element was found
+            if(ui.console) {
+                ui.console.appendChild(div);
+                ui.console.scrollTop = ui.console.scrollHeight; 
+            }
+            console.log(msg); 
         }
 
-        // --- LOGIN FLOW ---
-        ui.btn.addEventListener('click', async () => {
-            const email = document.getElementById('mega-email').value;
-            const pass = document.getElementById('mega-password').value;
-            
-            if(!email || !pass) { log("Error: Email or password missing", "error"); return; }
-            if(!Storage) { log("Error: Library not loaded, cannot proceed.", "error"); return; }
+        // 2. IMPORT LIBRARY
+        let Storage;
+        try {
+            log("Importing megajs library...");
+            const module = await import('https://unpkg.com/megajs@1.3.5/dist/main.browser-es.mjs');
+            Storage = module.Storage;
+            log("Library imported successfully.", "success");
+        } catch (e) {
+            log("CRITICAL ERROR: Could not load library. Check internet/adblock.", "error");
+            console.error(e);
+        }
 
-            ui.btn.disabled = true;
-            ui.btn.innerText = "Connecting...";
-            log("Attempting login for: " + email);
+        // 3. VARIABLES
+        const FILENAME = 'calendar_data_v2.json';
+        const COLORS = { 'work': '#3b82f6', 'personal': '#10b981', 'urgent': '#ef4444' };
+        let mega = null;
+        let cal = null;
+        let selectedInfo = null;
 
-            try {
-                // 1. Create Storage Instance
-                log("Generating encryption keys (this may take a moment)...");
-                mega = new Storage({ email: email, password: pass, keepalive: true });
-
-                // 2. Wait for Ready
-                log("Connecting to MEGA API...");
-                await new Promise((resolve, reject) => {
-                    // Set a timeout in case it hangs
-                    const timeout = setTimeout(() => reject(new Error("Connection timed out (15s)")), 15000);
-                    
-                    mega.on('ready', () => {
-                        clearTimeout(timeout);
-                        resolve();
-                    });
-                    mega.on('error', (err) => {
-                        clearTimeout(timeout);
-                        reject(err);
-                    });
-                });
-
-                log("Login Successful! Authenticated.", "success");
+        // 4. EVENT LISTENERS
+        if(ui.btn) {
+            ui.btn.addEventListener('click', async () => {
+                const email = document.getElementById('mega-email').value;
+                const pass = document.getElementById('mega-password').value;
                 
-                // 3. Switch UI
-                ui.login.style.display = 'none';
-                ui.header.style.display = 'flex';
-                ui.app.style.display = 'block';
+                if(!email || !pass) { log("Error: Email or password missing", "error"); return; }
+                if(!Storage) { log("Error: Library not loaded.", "error"); return; }
 
-                // 4. Load Data
-                await loadCalendarData();
+                ui.btn.disabled = true;
+                ui.btn.innerText = "Connecting...";
+                
+                try {
+                    log(`Generating keys for ${email}...`);
+                    mega = new Storage({ email: email, password: pass, keepalive: true });
 
-            } catch (err) {
-                log("LOGIN FAILED: " + err.message, "error");
-                ui.btn.disabled = false;
-                ui.btn.innerText = "Login & Sync";
-                alert("Login Error:\n" + err.message);
-            }
-        });
+                    log("Connecting to MEGA API...");
+                    await new Promise((resolve, reject) => {
+                        const timeout = setTimeout(() => reject(new Error("Timeout (15s)")), 15000);
+                        mega.on('ready', () => { clearTimeout(timeout); resolve(); });
+                        mega.on('error', (err) => { clearTimeout(timeout); reject(err); });
+                    });
+
+                    log("Authenticated!", "success");
+                    ui.login.style.display = 'none';
+                    ui.header.style.display = 'flex';
+                    ui.app.style.display = 'block';
+
+                    await loadCalendarData();
+
+                } catch (err) {
+                    log("LOGIN FAILED: " + err.message, "error");
+                    ui.btn.disabled = false;
+                    ui.btn.innerText = "Login & Sync";
+                }
+            });
+        }
 
         async function loadCalendarData() {
-            log("Searching for " + FILENAME + "...");
+            log("Checking storage for data...");
             let events = [];
-
             const file = mega.root.children.find(f => f.name === FILENAME);
             
             if (file) {
-                log("File found. Downloading & Decrypting...", "success");
+                log("Found file. Downloading...", "success");
                 try {
                     const data = await file.downloadBuffer();
                     events = JSON.parse(data.toString());
-                    log(`Loaded ${events.length} events.`);
-                } catch(e) {
-                    log("Error parsing JSON data: " + e.message, "error");
-                }
+                } catch(e) { log("JSON Error: " + e.message, "error"); }
             } else {
-                log("No calendar file found. Created new session.");
+                log("No file found. Starting fresh.");
             }
-
             renderCalendar(events);
         }
 
         function renderCalendar(events) {
-            log("Rendering Calendar UI...");
             const calendarEl = document.getElementById('calendar');
-            
-            // Map colors
             const coloredEvents = events.map(e => ({
                 ...e,
                 backgroundColor: COLORS[e.extendedProps?.category] || '#888',
@@ -233,7 +214,6 @@
                 selectable: true,
                 editable: true,
                 height: '100%',
-                
                 select: (info) => { selectedInfo = info; openModal(); },
                 eventClick: (info) => { openModal(info.event); },
                 eventDrop: () => sync(),
@@ -241,14 +221,11 @@
             });
 
             cal.render();
-            // Fix layout glitch
             setTimeout(() => cal.updateSize(), 100);
-            log("Calendar Ready.", "success");
         }
 
-        // --- SYNC ---
         async function sync() {
-            log("Syncing changes to cloud...");
+            log("Syncing...");
             const events = cal.getEvents().map(e => ({
                 id: e.id,
                 title: e.title,
@@ -257,22 +234,17 @@
                 allDay: e.allDay,
                 extendedProps: { category: e.extendedProps.category }
             }));
-
             const buffer = new TextEncoder().encode(JSON.stringify(events));
 
             try {
                 const oldFile = mega.root.children.find(f => f.name === FILENAME);
-                if (oldFile) {
-                    await oldFile.delete();
-                }
+                if (oldFile) await oldFile.delete();
                 await mega.upload(FILENAME, buffer).complete;
-                log("Sync Complete.", "success");
-            } catch (err) {
-                log("Sync Error: " + err.message, "error");
-            }
+                log("Saved to cloud.", "success");
+            } catch (err) { log("Save failed: " + err.message, "error"); }
         }
 
-        // --- MODAL FUNCTIONS (Global for HTML access) ---
+        // GLOBAL MODAL HELPERS
         window.openModal = (event = null) => {
             ui.modal.style.display = 'flex';
             if(event) {
@@ -324,7 +296,6 @@
                 closeModal();
             }
         };
-
     </script>
 </body>
 </html>
