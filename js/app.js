@@ -67,7 +67,7 @@ class CalendarApp {
         this.ui.renderCalendars(this.calendars, this.visibleCalendars);
 
         // Mark "Day" view button active by default
-        const dayBtn = this.ui.elements.viewSelector.querySelector('button[data-view="resourceTimeGridDay"]');
+        const dayBtn = this.ui.elements.viewSelector.querySelector('button[data-view="timeGridDay"]');
         if (dayBtn) {
             this.ui.setActiveViewButton(dayBtn);
         }
@@ -81,14 +81,6 @@ class CalendarApp {
     /* =======================
        Helpers
     ======================= */
-
-    getResources() {
-        // One resource (column) per calendar
-        return this.calendars.map(cal => ({
-            id: cal.name,
-            title: cal.name
-        }));
-    }
 
     getTimeStripWindow() {
         // Visible window for right time strip: from now-1h to now+5h, clamped to [0, 24h]
@@ -143,9 +135,7 @@ class CalendarApp {
         const scrollTime = this.getScrollTimeString();
 
         this.fullCalendar = new FullCalendar.Calendar(calendarEl, {
-            plugins: [ FullCalendar.resourceTimeGridPlugin ],
-            initialView: 'resourceTimeGridDay',
-            resources: this.getResources(),
+            initialView: 'timeGridDay',
             initialDate: now,
             height: '100%',
             nowIndicator: true,
@@ -171,8 +161,8 @@ class CalendarApp {
             dateClick: (info) => {
                 const vType = this.fullCalendar.view.type;
                 if (vType.startsWith('dayGrid')) {
-                    this.fullCalendar.changeView('resourceTimeGridDay', info.date);
-                    const dayBtn = this.ui.elements.viewSelector.querySelector('button[data-view="resourceTimeGridDay"]');
+                    this.fullCalendar.changeView('timeGridDay', info.date);
+                    const dayBtn = this.ui.elements.viewSelector.querySelector('button[data-view="timeGridDay"]');
                     if (dayBtn) {
                         this.ui.setActiveViewButton(dayBtn);
                     }
@@ -182,7 +172,7 @@ class CalendarApp {
             select: (info) => {
                 const vType = this.fullCalendar.view.type;
                 if (vType.includes('timeGrid')) {
-                    this.openEventCreationFromRange(info.start, info.end, info.resource ? info.resource.id : null);
+                    this.openEventCreationFromRange(info.start, info.end);
                 }
             },
             eventDrop: async (info) => {
@@ -191,10 +181,6 @@ class CalendarApp {
                 if (ev) {
                     ev.start = info.event.start.toISOString();
                     ev.end = info.event.end ? info.event.end.toISOString() : ev.end;
-                    // If moved to another resource/column, update calendar field
-                    if (info.newResource) {
-                        ev.calendar = info.newResource.id;
-                    }
                     ev.updatedAt = Date.now();
                     await this.db.save('events', ev);
                     this.refreshCalendarEvents();
@@ -219,11 +205,7 @@ class CalendarApp {
 
     changeView(view) {
         if (!this.fullCalendar) return;
-        if (view === 'resourceTimeGridDay') {
-            this.fullCalendar.changeView('resourceTimeGridDay');
-        } else {
-            this.fullCalendar.changeView(view);
-        }
+        this.fullCalendar.changeView(view);
     }
 
     refreshCalendarEvents() {
@@ -241,13 +223,9 @@ class CalendarApp {
                 title: ev.name,
                 start: ev.start,
                 end: ev.end,
-                resourceId: ev.calendar,
                 extendedProps: { calendar: ev.calendar }
             });
         });
-
-        // Also keep resources in sync with calendars
-        this.fullCalendar.setOption('resources', this.getResources());
     }
 
     /* =======================
@@ -409,7 +387,7 @@ class CalendarApp {
      * Called when user click-drags on empty time slots in the calendar.
      * Start = press position, End = release position.
      */
-    openEventCreationFromRange(start, end, calendarName) {
+    openEventCreationFromRange(start, end) {
         const year = start.getFullYear();
         const month = (start.getMonth() + 1).toString().padStart(2, '0');
         const day = start.getDate().toString().padStart(2, '0');
@@ -423,7 +401,7 @@ class CalendarApp {
         const startTimeStr = `${sh}:${sm}`;
         const endTimeStr = `${eh}:${em}`;
 
-        const defaultCalendar = calendarName || this.calendars[0]?.name || 'Main';
+        const defaultCalendar = this.calendars[0]?.name || 'Main';
 
         this.ui.populateEventForm({
             id: '',
