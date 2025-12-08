@@ -143,7 +143,7 @@ class CalendarApp {
         const scrollTime = this.getScrollTimeString();
 
         this.fullCalendar = new FullCalendar.Calendar(calendarEl, {
-            // One column per calendar (resource)
+            plugins: [ FullCalendar.resourceTimeGridPlugin ],
             initialView: 'resourceTimeGridDay',
             resources: this.getResources(),
             initialDate: now,
@@ -167,7 +167,7 @@ class CalendarApp {
                     this.ui.elements.eventOverlay.classList.remove('hidden');
                 }
             },
-            // Click on day cells in other views (e.g. month) -> go to that day
+            // Click on day cells in month view -> go to that day
             dateClick: (info) => {
                 const vType = this.fullCalendar.view.type;
                 if (vType.startsWith('dayGrid')) {
@@ -241,7 +241,7 @@ class CalendarApp {
                 title: ev.name,
                 start: ev.start,
                 end: ev.end,
-                resourceId: ev.calendar, // put in the right calendar column
+                resourceId: ev.calendar,
                 extendedProps: { calendar: ev.calendar }
             });
         });

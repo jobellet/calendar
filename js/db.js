@@ -57,7 +57,6 @@ class Database {
             const transaction = this.db.transaction([storeName], 'readwrite');
             const store = transaction.objectStore(storeName);
 
-            // Ensure timestamps on events and images
             const now = Date.now();
             if (storeName === 'events' || storeName === 'images') {
                 if (!item.createdAt) {

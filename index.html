@@ -5,7 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Family Calendar</title>
     <link rel="stylesheet" href="css/styles.css">
+    <!-- FullCalendar core + standard views -->
     <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
+    <!-- Resource timegrid plugin for columns per calendar -->
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/resource-timegrid/index.global.min.js"></script>
 </head>
 <body>
     <div id="app-container">
@@ -18,7 +21,7 @@
             <div id="view-selector">
                 <button type="button" data-view="dayGridMonth">Month</button>
                 <button type="button" data-view="timeGridWeek">Week</button>
-                <button type="button" data-view="timeGridDay">Day</button>
+                <button type="button" data-view="resourceTimeGridDay">Day</button>
             </div>
 
             <div id="calendars-section">
