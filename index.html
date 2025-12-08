@@ -11,10 +11,10 @@
     <link rel="stylesheet" href="css/styles.css">
     <link rel="stylesheet" href="css/header-img.css">
     <link rel="stylesheet" href="css/close-btn.css">
+    <link rel="stylesheet" href="css/features.css">
 
     <!-- FullCalendar Scheduler (includes Core + Standard + Premium plugins) -->
     <script src="https://cdn.jsdelivr.net/npm/fullcalendar-scheduler@6.1.15/index.global.min.js"></script>
-    <!-- rrule plugin for recurring events -->
     <script src="https://cdn.jsdelivr.net/npm/fullcalendar-rrule@6.1.15/index.global.min.js"></script>
 </head>
 
@@ -41,6 +41,7 @@
                 <button type="button" data-view="dayGridMonth">Month</button>
                 <button type="button" data-view="timeGridWeek">Week</button>
                 <button type="button" data-view="timeGridDay">Day</button>
+                <button type="button" data-view="hoursView">Hours</button>
             </div>
 
             <div id="calendars-section">
@@ -177,7 +178,17 @@
                 <label>
                     Name / Category
                     <input type="text" id="event-name" required>
+                    <div id="event-image-suggestion" class="event-image-suggestion">Suggestion available: Click to use
+                    </div>
                 </label>
+
+                <div class="event-image-group">
+                    <label>
+                        Event Image (Optional)
+                        <input type="file" id="event-image-file" accept="image/*">
+                    </label>
+                    <img id="event-image-preview" class="event-image-preview" src="" alt="Event Image Preview">
+                </div>
 
                 <label>
                     Date

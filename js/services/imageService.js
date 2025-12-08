@@ -12,6 +12,12 @@ class ImageService {
 
     findEventImage(event) {
         if (!event) return null;
+
+        // Priority 1: Specific event image
+        const eventIdMatch = this.images.find(img => img.id === `event:${event.id}`);
+        if (eventIdMatch) return eventIdMatch;
+
+        // Priority 2: Category image
         const normalizedName = (event.name || '').trim().toLowerCase();
         const categoryMatches = this.images.filter(img => img.category && img.category === normalizedName);
         let match = categoryMatches.find(img => img.calendar === event.calendar);
@@ -21,7 +27,24 @@ class ImageService {
         if (match) {
             return match;
         }
-        return this.images.find(img => !img.category && img.calendar === event.calendar) || null;
+
+        // Priority 3: Calendar image (if no category match)
+        // Actually, the user wants "event content" to be image if available.
+        // If NO event image, NO category image, do we show calendar image?
+        // Current logic says: yes, if calendar has one.
+        // User request: "Ensuring Calendar Header Images Only... event content... event name OR event category image"
+        // So we should REMOVE the calendar image fallback for EVENTS.
+        // Wait, step 1 said "Confirming that images are exclusively displayed in calendar column headers...".
+        // So if I return a calendar image here, it might be used in event content.
+        // I should DELETE the fallback to calendar image here.
+        return null;
+    }
+
+    findImageByCategoryName(name) {
+        const normalized = (name || '').trim().toLowerCase();
+        const matches = this.images.filter(img => img.category === normalized);
+        // Prefer 'all' scope or just first match
+        return matches.find(img => img.calendar === 'all') || matches[0] || null;
     }
 
     async saveCalendarImage(calendarName, dataUrl, crop = {}) {
@@ -47,6 +70,23 @@ class ImageService {
             id,
             calendar: scope,
             category: normalizedCat,
+            url: dataUrl,
+            cropX: crop.cropX || 50,
+            cropY: crop.cropY || 50,
+            averageColor: metadata.averageColor,
+        };
+        await this._save(imageEntry);
+        await this._save(imageEntry);
+    }
+
+    async saveEventImage(eventId, dataUrl, crop = {}) {
+        const id = `event:${eventId}`;
+        const metadata = await this._extractMetadata(dataUrl);
+        const imageEntry = {
+            id,
+            calendar: null,
+            category: null,
+            eventId: eventId,
             url: dataUrl,
             cropX: crop.cropX || 50,
             cropY: crop.cropY || 50,

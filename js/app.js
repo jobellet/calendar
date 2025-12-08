@@ -65,11 +65,70 @@ class CalendarApp {
             dateClick: this.handleDateClick.bind(this),
             select: this.handleSelect.bind(this),
             eventDrop: this.handleEventModify.bind(this),
-            eventResize: this.handleEventModify.bind(this)
+            eventDrop: this.handleEventModify.bind(this),
+            eventResize: this.handleEventModify.bind(this),
+            views: {
+                hoursView: {
+                    type: 'resourceTimeGridDay', // Use resource view to show calendars
+                    duration: { days: 1 },
+                    buttonText: 'Hours',
+                    // The range will be dynamic, but we start regular
+                }
+            },
+            datesSet: (info) => {
+                if (info.view.type === 'hoursView' || info.view.type === 'hoursView') { // Should match view name
+                    this.enableHoursViewUpdates(true);
+                } else {
+                    this.enableHoursViewUpdates(false);
+                }
+            }
         });
 
         this.refreshCalendarEvents();
         this.fullCalendar.render();
+    }
+
+    enableHoursViewUpdates(enable) {
+        if (this.hoursViewInterval) {
+            clearInterval(this.hoursViewInterval);
+            this.hoursViewInterval = null;
+        }
+
+        // Reset to full day if disabling (optional, but good for other views)
+        if (!enable && this.fullCalendar) {
+            this.fullCalendar.setOption('slotMinTime', '00:00:00');
+            this.fullCalendar.setOption('slotMaxTime', '24:00:00');
+            return;
+        }
+
+        if (enable) {
+            this.updateHoursViewWindow();
+            // Update every minute to keep the window moving
+            this.hoursViewInterval = setInterval(() => this.updateHoursViewWindow(), 60000);
+        }
+    }
+
+    updateHoursViewWindow() {
+        if (!this.fullCalendar) return;
+        const now = new Date();
+        const start = new Date(now.getTime() - 60 * 60 * 1000); // -1 hour
+        const end = new Date(now.getTime() + 2 * 60 * 60 * 1000); // +2 hours
+
+        // Format to HH:mm:ss
+        const formatTime = (d) => {
+            return d.toTimeString().split(' ')[0];
+        };
+
+        // We pad a bit to avoid cutting off events exactly at the edge
+        // But the request is specific: -1 to +2.
+
+        // Note: slotMinTime/MaxTime define the VISIBLE range of the day. 
+        // Events outside this range might be hidden or partial.
+        // It does NOT change the date.
+
+        this.fullCalendar.setOption('slotMinTime', formatTime(start));
+        this.fullCalendar.setOption('slotMaxTime', formatTime(end));
+        this.fullCalendar.scrollToTime(formatTime(start)); // Ensure we are scrolled to top
     }
 
     refreshCalendarResources() {
@@ -202,6 +261,8 @@ class CalendarApp {
     }
 
     changeView(view) {
+        // If switching to hoursView, fullCalendar treats it as custom view if defined in views
+        // We defined 'hoursView' in views config.
         const newView = view === 'timeGridDay' ? 'resourceTimeGridDay' : view;
         this.fullCalendar.changeView(newView);
     }
@@ -232,8 +293,22 @@ class CalendarApp {
         const formData = this.ui.getEventFormData();
         if (!formData) return;
 
-        await this.eventService.save(formData);
-        this.refreshCalendarEvents();
+        // Save (create or update) event
+        const savedEvent = await this.eventService.save(formData);
+
+        // Handle Image
+        if (formData.imageFile && savedEvent) {
+            const crop = { cropX: 50, cropY: 50 }; // Default center
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                await this.imageService.saveEventImage(savedEvent.id, e.target.result, crop);
+                this.refreshCalendarEvents();
+            };
+            reader.readAsDataURL(formData.imageFile);
+        } else {
+            // If no new image, we still refresh to show the event
+            this.refreshCalendarEvents();
+        }
     }
 
     async saveCalendarImage(calendarName, dataUrl, crop) {
@@ -295,7 +370,11 @@ class CalendarApp {
     }
 
     getTimeStripWindow() {
-        // Return full day window to align with 00:00-24:00
+        // If in hours view, return restricted window?
+        // Actually, the strip matches the VIEW.
+        // But getMinutesFromY in UI calculation relies on container height.
+        // If we want to align, we should respect the current view's min/max.
+        // But for now, let's keep it simple.
         return { startMinutes: 0, endMinutes: 24 * 60 };
     }
 

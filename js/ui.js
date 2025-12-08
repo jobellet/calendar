@@ -45,6 +45,10 @@ class UI {
             recurrenceDayInputs: Array.from(document.querySelectorAll('input[name="event-recurrence-days"]')),
             eventRecurrenceInterval: document.getElementById('event-recurrence-interval'),
             eventRecurrenceUntil: document.getElementById('event-recurrence-until'),
+            // New Event Image Elements
+            eventImageFile: document.getElementById('event-image-file'),
+            eventImagePreview: document.getElementById('event-image-preview'),
+            eventImageSuggestion: document.getElementById('event-image-suggestion'),
             // Image Preview Elements
             imgCalendarPreview: document.getElementById('img-calendar-preview'),
             imgCategoryPreview: document.getElementById('img-category-preview'),
@@ -59,6 +63,7 @@ class UI {
     init(app) {
         this.app = app;
         this.addEventListeners();
+        this.setupEventImageHandling();
     }
 
     addEventListeners() {
@@ -528,10 +533,13 @@ class UI {
             return null;
         }
 
+        const imageFile = this.elements.eventImageFile.files[0];
+
         return {
             id,
             calendar,
             name,
+            imageFile, // Pass the file if selected
             start: new Date(`${date}T${startTime}:00`).toISOString(),
             end: new Date(`${date}T${endTime}:00`).toISOString(),
             recurrence
@@ -547,9 +555,15 @@ class UI {
             until: null
         };
         if (type === 'custom') {
-            const days = this.elements.recurrenceDayInputs
+            let days = this.elements.recurrenceDayInputs
                 .filter(input => input.checked)
                 .map(input => Number(input.value));
+
+            // User Request: "Not selecting any... means selecting all"
+            if (days.length === 0) {
+                days = [0, 1, 2, 3, 4, 5, 6];
+            }
+
             payload.days = days;
             const intervalValue = parseInt(this.elements.eventRecurrenceInterval?.value, 10);
             payload.intervalWeeks = (!Number.isNaN(intervalValue) && intervalValue > 0) ? intervalValue : 1;
@@ -633,5 +647,58 @@ class UI {
                 document.body.removeChild(toast);
             }, 300);
         }, 3000);
+    }
+    setupEventImageHandling() {
+        // Preview for manual upload
+        if (this.elements.eventImageFile && this.elements.eventImagePreview) {
+            this.elements.eventImageFile.addEventListener('change', async () => {
+                const file = this.elements.eventImageFile.files[0];
+                if (file) {
+                    const dataUrl = await this.readFileAsDataURL(file);
+                    this.elements.eventImagePreview.src = dataUrl;
+                    this.elements.eventImagePreview.style.display = 'block';
+                } else {
+                    this.elements.eventImagePreview.style.display = 'none';
+                    this.elements.eventImagePreview.src = '';
+                }
+            });
+        }
+
+        // Suggestion logic
+        if (this.elements.eventName && this.elements.eventImageSuggestion) {
+            this.elements.eventName.addEventListener('input', () => {
+                const name = this.elements.eventName.value.trim();
+                if (name.length > 2) {
+                    const match = this.app.imageService.findImageByCategoryName(name);
+                    if (match) {
+                        this.elements.eventImageSuggestion.textContent = `Suggestion available: Use image for "${match.category}"`;
+                        this.elements.eventImageSuggestion.dataset.url = match.url; // Store URL
+                        this.elements.eventImageSuggestion.style.display = 'block';
+                    } else {
+                        this.elements.eventImageSuggestion.style.display = 'none';
+                    }
+                } else {
+                    this.elements.eventImageSuggestion.style.display = 'none';
+                }
+            });
+
+            this.elements.eventImageSuggestion.addEventListener('click', () => {
+                const url = this.elements.eventImageSuggestion.dataset.url;
+                if (url) {
+                    // We can't set file input value, so we'll fetch blob or just pass URL?
+                    // Ideally, we just show preview and set a flag/hidden input.
+                    // For simplicity, let's just show preview and maybe set a property on the form data?
+                    // Actually, if it's an existing image, we can just LINK it.
+                    // But the request says "Add the possibility to add an image... If string is recognized... corresponding is suggested to be included."
+                    // If included, maybe it means "use that category image".
+                    // But we already do that automatically if the name matches!
+                    // Maybe the user wants to *explicitly* attach it to this event, even if name changes?
+                    // Or maybe just auto-fill the preview so they know.
+                    this.elements.eventImagePreview.src = url;
+                    this.elements.eventImagePreview.style.display = 'block';
+                    this.elements.eventImagePreview.dataset.useUrl = url; // Flag to use this URL
+                }
+            });
+        }
     }
 }
