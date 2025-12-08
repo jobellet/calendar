@@ -131,6 +131,14 @@ class UI {
             this.toggleModal(this.elements.eventOverlay, false);
         });
 
+        // Close event modal X button
+        const closeEventBtn = document.getElementById('close-event-modal-btn');
+        if (closeEventBtn) {
+            closeEventBtn.addEventListener('click', () => {
+                this.toggleModal(this.elements.eventOverlay, false);
+            });
+        }
+
         // Image management panel
         this.elements.openImagePanelBtn.addEventListener('click', () => {
             this.toggleModal(this.elements.imageManagementPanel, true);
@@ -144,14 +152,28 @@ class UI {
         }
 
         // Calendar image save
+        // Calendar image save
         this.elements.imgCalendarSaveBtn.addEventListener('click', async () => {
             const calName = this.elements.imgCalendarSelect.value;
             const file = this.elements.imgCalendarFile.files[0];
-            if (!calName || !file) return;
-            const dataUrl = await this.readFileAsDataURL(file);
-            const cropX = Math.min(100, Math.max(0, parseInt(this.elements.imgCalendarCropX?.value, 10) || 50));
-            const cropY = Math.min(100, Math.max(0, parseInt(this.elements.imgCalendarCropY?.value, 10) || 50));
-            this.app.saveCalendarImage(calName, dataUrl, { cropX, cropY });
+            if (!calName) {
+                this.showToast('Please select a calendar.', 'error');
+                return;
+            }
+            if (!file) {
+                this.showToast('Please select an image file.', 'error');
+                return;
+            }
+            try {
+                const dataUrl = await this.readFileAsDataURL(file);
+                const cropX = Math.min(100, Math.max(0, parseInt(this.elements.imgCalendarCropX?.value, 10) || 50));
+                const cropY = Math.min(100, Math.max(0, parseInt(this.elements.imgCalendarCropY?.value, 10) || 50));
+                await this.app.saveCalendarImage(calName, dataUrl, { cropX, cropY });
+                this.showToast('Calendar image saved!', 'success');
+            } catch (error) {
+                console.error('Failed to save calendar image:', error);
+                this.showToast('Failed to save image.', 'error');
+            }
         });
 
         // Category image save
@@ -159,11 +181,26 @@ class UI {
             const category = this.elements.imgCategoryName.value.trim();
             const scope = this.elements.imgCategoryScope.value || 'all';
             const file = this.elements.imgCategoryFile.files[0];
-            if (!category || !file) return;
-            const dataUrl = await this.readFileAsDataURL(file);
-            const cropX = Math.min(100, Math.max(0, parseInt(this.elements.imgCategoryCropX?.value, 10) || 50));
-            const cropY = Math.min(100, Math.max(0, parseInt(this.elements.imgCategoryCropY?.value, 10) || 50));
-            this.app.saveCategoryImage(scope, category, dataUrl, { cropX, cropY });
+
+            if (!category) {
+                this.showToast('Please enter a category name.', 'error');
+                return;
+            }
+            if (!file) {
+                this.showToast('Please select an image file.', 'error');
+                return;
+            }
+
+            try {
+                const dataUrl = await this.readFileAsDataURL(file);
+                const cropX = Math.min(100, Math.max(0, parseInt(this.elements.imgCategoryCropX?.value, 10) || 50));
+                const cropY = Math.min(100, Math.max(0, parseInt(this.elements.imgCategoryCropY?.value, 10) || 50));
+                await this.app.saveCategoryImage(scope, category, dataUrl, { cropX, cropY });
+                this.showToast('Category image saved!', 'success');
+            } catch (error) {
+                console.error('Failed to save category image:', error);
+                this.showToast('Failed to save image.', 'error');
+            }
         });
 
         // Initialize Previews

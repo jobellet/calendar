@@ -10,6 +10,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/styles.css">
     <link rel="stylesheet" href="css/header-img.css">
+    <link rel="stylesheet" href="css/close-btn.css">
 
     <!-- FullCalendar Scheduler (includes Core + Standard + Premium plugins) -->
     <script src="https://cdn.jsdelivr.net/npm/fullcalendar-scheduler@6.1.15/index.global.min.js"></script>
@@ -163,6 +164,7 @@
     <!-- Event creation Overlay -->
     <div id="event-overlay" class="overlay">
         <div id="event-box" class="modal-box">
+            <button id="close-event-modal-btn" type="button" class="close-modal-x">×</button>
             <h2 id="event-form-title">Create event</h2>
             <form id="event-form">
                 <input type="hidden" id="event-id">

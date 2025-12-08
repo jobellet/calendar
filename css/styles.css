@@ -348,6 +348,7 @@ button {
 }
 
 .modal-box {
+    position: relative;
     background: white;
     padding: 30px;
     border-radius: 24px;

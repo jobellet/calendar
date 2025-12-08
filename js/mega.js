@@ -27,7 +27,7 @@ class MegaSync {
         return new Promise((resolve) => {
             setTimeout(() => {
                 // Here we would actually diff and upload/download
-                console.log(`[MegaSync] Synced ${events.length} events, ${calendars.length} calendars.`);
+                console.log(`[MegaSync] Synced ${events.length} events, ${calendars.length} calendars, ${images.length} images.`);
                 resolve(true); // Sync success
             }, 1500);
         });
