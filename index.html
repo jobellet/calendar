@@ -4,11 +4,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Family Calendar</title>
+    <title>Family Calendar | Beautiful, Smooth, Intuitive</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/styles.css">
-    <!-- FullCalendar core + standard views -->
+    <!-- FullCalendar -->
     <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
-    <!-- Resource timegrid plugin for columns per calendar -->
     <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/resource-timegrid/index.global.min.js"></script>
     <!-- rrule plugin for recurring events -->
     <script src="https://cdn.jsdelivr.net/npm/fullcalendar-rrule@6.1.15/index.global.min.js"></script>
@@ -54,8 +56,8 @@
     </div>
 
     <!-- Image Management Panel -->
-    <div id="image-management-panel" class="hidden">
-        <div id="image-management-content">
+    <div id="image-management-panel" class="overlay">
+        <div id="image-management-content" class="modal-box">
             <button id="close-image-panel-btn" type="button">✕</button>
             <h2>Images</h2>
 
@@ -114,8 +116,8 @@
     </div>
 
     <!-- Login Overlay -->
-    <div id="login-overlay" class="hidden">
-        <div id="login-box">
+    <div id="login-overlay" class="overlay">
+        <div id="login-box" class="modal-box">
             <h2>Login to MEGA</h2>
             <form id="login-form">
                 <label>
@@ -133,8 +135,8 @@
     </div>
 
     <!-- Event creation Overlay -->
-    <div id="event-overlay" class="hidden">
-        <div id="event-box">
+    <div id="event-overlay" class="overlay">
+        <div id="event-box" class="modal-box">
             <h2 id="event-form-title">Create event</h2>
             <form id="event-form">
                 <input type="hidden" id="event-id">
@@ -205,6 +207,10 @@
     </div>
 
     <script src="js/db.js"></script>
+    <script src="js/services/historyService.js"></script>
+    <script src="js/services/eventService.js"></script>
+    <script src="js/services/imageService.js"></script>
+    <script src="js/services/calendarService.js"></script>
     <script src="js/ui.js"></script>
     <script src="js/mega.js"></script>
     <script src="js/app.js"></script>
