@@ -121,6 +121,8 @@ class CalendarApp {
             img.alt = info.event.title;
             img.style.objectFit = 'contain'; // Maintain aspect ratio
             img.style.objectPosition = `${imageEntry.cropX}% ${imageEntry.cropY}%`;
+            img.style.width = '100%';
+            img.style.height = '100%';
             wrapper.appendChild(img);
         } else {
             const titleEl = document.createElement('div');
