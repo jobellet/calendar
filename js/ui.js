@@ -16,10 +16,14 @@ class UI {
             // Image management controls
             imgCalendarSelect: document.getElementById('img-calendar-select'),
             imgCalendarFile: document.getElementById('img-calendar-file'),
+            imgCalendarCropX: document.getElementById('img-calendar-crop-x'),
+            imgCalendarCropY: document.getElementById('img-calendar-crop-y'),
             imgCalendarSaveBtn: document.getElementById('img-calendar-save-btn'),
             imgCategoryName: document.getElementById('img-category-name'),
             imgCategoryScope: document.getElementById('img-category-scope'),
             imgCategoryFile: document.getElementById('img-category-file'),
+            imgCategoryCropX: document.getElementById('img-category-crop-x'),
+            imgCategoryCropY: document.getElementById('img-category-crop-y'),
             imgCategorySaveBtn: document.getElementById('img-category-save-btn'),
             // Login overlay
             loginOverlay: document.getElementById('login-overlay'),
@@ -37,6 +41,10 @@ class UI {
             eventEndTime: document.getElementById('event-end-time'),
             eventRecurrence: document.getElementById('event-recurrence'),
             eventResetBtn: document.getElementById('event-reset-btn'),
+            customRecurrenceOptions: document.getElementById('custom-recurrence-options'),
+            recurrenceDayInputs: Array.from(document.querySelectorAll('input[name="event-recurrence-days"]')),
+            eventRecurrenceInterval: document.getElementById('event-recurrence-interval'),
+            eventRecurrenceUntil: document.getElementById('event-recurrence-until'),
         };
     }
 
@@ -105,6 +113,12 @@ class UI {
             this.elements.eventOverlay.classList.add('hidden');
         });
 
+        if (this.elements.eventRecurrence) {
+            this.elements.eventRecurrence.addEventListener('change', () => {
+                this.toggleCustomRecurrenceFields();
+            });
+        }
+
         this.elements.eventResetBtn.addEventListener('click', () => {
             this.elements.eventOverlay.classList.add('hidden');
         });
@@ -127,7 +141,9 @@ class UI {
             const file = this.elements.imgCalendarFile.files[0];
             if (!calName || !file) return;
             const dataUrl = await this.readFileAsDataURL(file);
-            this.app.saveCalendarImage(calName, dataUrl);
+            const cropX = Math.min(100, Math.max(0, parseInt(this.elements.imgCalendarCropX?.value, 10) || 50));
+            const cropY = Math.min(100, Math.max(0, parseInt(this.elements.imgCalendarCropY?.value, 10) || 50));
+            this.app.saveCalendarImage(calName, dataUrl, { cropX, cropY });
         });
 
         // Category image save
@@ -137,7 +153,9 @@ class UI {
             const file = this.elements.imgCategoryFile.files[0];
             if (!category || !file) return;
             const dataUrl = await this.readFileAsDataURL(file);
-            this.app.saveCategoryImage(scope, category, dataUrl);
+            const cropX = Math.min(100, Math.max(0, parseInt(this.elements.imgCategoryCropX?.value, 10) || 50));
+            const cropY = Math.min(100, Math.max(0, parseInt(this.elements.imgCategoryCropY?.value, 10) || 50));
+            this.app.saveCategoryImage(scope, category, dataUrl, { cropX, cropY });
         });
 
         // Right sidebar hover / click -> choose time in the same zoom window as day view
@@ -284,11 +302,71 @@ class UI {
             this.elements.eventEndTime.value = '';
         }
 
-        this.elements.eventRecurrence.value = eventData?.recurrence?.type || 'none';
+        this.setRecurrenceValues(eventData?.recurrence);
     }
 
     clearEventForm() {
         this.populateEventForm(null);
+    }
+
+    setRecurrenceValues(recurrence) {
+        const safeRecurrence = recurrence || { type: 'none', days: [], intervalWeeks: 1, until: null };
+        const type = safeRecurrence.type || 'none';
+        if (this.elements.eventRecurrence) {
+            this.elements.eventRecurrence.value = type;
+        }
+        this.toggleCustomRecurrenceFields();
+
+        if (type === 'custom') {
+            const days = Array.isArray(safeRecurrence.days) ? safeRecurrence.days : [];
+            this.elements.recurrenceDayInputs.forEach(input => {
+                input.checked = days.includes(Number(input.value));
+            });
+            if (this.elements.eventRecurrenceInterval) {
+                this.elements.eventRecurrenceInterval.value = safeRecurrence.intervalWeeks || 1;
+            }
+            if (this.elements.eventRecurrenceUntil) {
+                this.elements.eventRecurrenceUntil.value = safeRecurrence.until || '';
+            }
+        } else {
+            this.elements.recurrenceDayInputs.forEach(input => {
+                input.checked = false;
+            });
+            if (this.elements.eventRecurrenceInterval) {
+                this.elements.eventRecurrenceInterval.value = 1;
+            }
+            if (this.elements.eventRecurrenceUntil) {
+                this.elements.eventRecurrenceUntil.value = '';
+            }
+        }
+    }
+
+    toggleCustomRecurrenceFields() {
+        if (!this.elements.customRecurrenceOptions || !this.elements.eventRecurrence) {
+            return;
+        }
+        const show = this.elements.eventRecurrence.value === 'custom';
+        this.elements.customRecurrenceOptions.classList.toggle('hidden', !show);
+    }
+
+    getRecurrencePayload() {
+        const type = this.elements.eventRecurrence?.value || 'none';
+        const payload = {
+            type,
+            days: [],
+            intervalWeeks: 1,
+            until: null
+        };
+        if (type === 'custom') {
+            const days = this.elements.recurrenceDayInputs
+                .filter(input => input.checked)
+                .map(input => Number(input.value));
+            payload.days = days;
+            const intervalValue = parseInt(this.elements.eventRecurrenceInterval?.value, 10);
+            payload.intervalWeeks = (!Number.isNaN(intervalValue) && intervalValue > 0) ? intervalValue : 1;
+            payload.until = this.elements.eventRecurrenceUntil?.value || null;
+        }
+        return payload;
     }
 
     setSyncStatus(online) {

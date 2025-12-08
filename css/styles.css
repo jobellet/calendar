@@ -384,6 +384,59 @@ body {
     background: #eee;
 }
 
+#custom-recurrence-options {
+    margin-top: 4px;
+    padding: 8px;
+    border: 1px dashed var(--border-color);
+    border-radius: 6px;
+    background: #fafafa;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.weekday-grid {
+    font-size: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.weekday-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.weekday-options label {
+    font-size: 11px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: 1px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background: #fff;
+}
+
+.crop-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 4px 0;
+}
+
+.crop-controls label {
+    font-size: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.crop-controls input[type="range"] {
+    width: 100%;
+}
+
 /* FullCalendar tweaks */
 .fc-toolbar-title {
     font-size: 16px;
@@ -392,4 +445,28 @@ body {
 .fc-col-header-cell-cushion,
 .fc-daygrid-day-number {
     font-size: 12px;
+}
+
+.custom-event-content {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+}
+
+.custom-event-content img {
+    width: 36px;
+    height: 36px;
+    border-radius: 6px;
+    object-fit: cover;
+    background: var(--bg-light);
+    flex-shrink: 0;
+}
+
+.custom-event-content .event-title {
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }

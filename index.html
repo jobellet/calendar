@@ -10,6 +10,8 @@
     <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
     <!-- Resource timegrid plugin for columns per calendar -->
     <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/resource-timegrid/index.global.min.js"></script>
+    <!-- rrule plugin for recurring events -->
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar-rrule@6.1.15/index.global.min.js"></script>
 </head>
 
 <body>
@@ -67,6 +69,16 @@
                     Image file
                     <input type="file" id="img-calendar-file" accept="image/*">
                 </label>
+                <div class="crop-controls">
+                    <label>
+                        Horizontal focus
+                        <input type="range" id="img-calendar-crop-x" min="0" max="100" value="50">
+                    </label>
+                    <label>
+                        Vertical focus
+                        <input type="range" id="img-calendar-crop-y" min="0" max="100" value="50">
+                    </label>
+                </div>
                 <button type="button" id="img-calendar-save-btn">Save calendar image</button>
             </section>
 
@@ -86,6 +98,16 @@
                     Image file
                     <input type="file" id="img-category-file" accept="image/*">
                 </label>
+                <div class="crop-controls">
+                    <label>
+                        Horizontal focus
+                        <input type="range" id="img-category-crop-x" min="0" max="100" value="50">
+                    </label>
+                    <label>
+                        Vertical focus
+                        <input type="range" id="img-category-crop-y" min="0" max="100" value="50">
+                    </label>
+                </div>
                 <button type="button" id="img-category-save-btn">Save category image</button>
             </section>
         </div>
@@ -149,8 +171,32 @@
                         <option value="daily">Daily</option>
                         <option value="weekly">Weekly</option>
                         <option value="biweekly">Every 2 weeks</option>
+                        <option value="custom">Custom schedule</option>
                     </select>
                 </label>
+
+                <div id="custom-recurrence-options" class="hidden">
+                    <div class="weekday-grid">
+                        <span>Repeat on</span>
+                        <div class="weekday-options">
+                            <label><input type="checkbox" name="event-recurrence-days" value="0">Sun</label>
+                            <label><input type="checkbox" name="event-recurrence-days" value="1">Mon</label>
+                            <label><input type="checkbox" name="event-recurrence-days" value="2">Tue</label>
+                            <label><input type="checkbox" name="event-recurrence-days" value="3">Wed</label>
+                            <label><input type="checkbox" name="event-recurrence-days" value="4">Thu</label>
+                            <label><input type="checkbox" name="event-recurrence-days" value="5">Fri</label>
+                            <label><input type="checkbox" name="event-recurrence-days" value="6">Sat</label>
+                        </div>
+                    </div>
+                    <label>
+                        Every
+                        <input type="number" id="event-recurrence-interval" min="1" value="1"> week(s)
+                    </label>
+                    <label>
+                        Until
+                        <input type="date" id="event-recurrence-until">
+                    </label>
+                </div>
 
                 <button type="submit" id="event-save-btn">Save</button>
                 <button type="button" id="event-reset-btn">Cancel</button>

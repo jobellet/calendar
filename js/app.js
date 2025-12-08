@@ -41,6 +41,23 @@ class CalendarApp {
         this.historyLimit = 20;
     }
 
+    normalizeImageEntry(entry) {
+        if (!entry) return null;
+        const normalized = { ...entry };
+        const parsedCropX = Number(normalized.cropX);
+        const parsedCropY = Number(normalized.cropY);
+        normalized.cropX = Number.isFinite(parsedCropX) ? parsedCropX : 50;
+        normalized.cropY = Number.isFinite(parsedCropY) ? parsedCropY : 50;
+        normalized.averageColor = normalized.averageColor || '#f5f5f5';
+        return normalized;
+    }
+
+    normalizeImageEntries(entries = []) {
+        return entries
+            .map(entry => this.normalizeImageEntry(entry))
+            .filter(Boolean);
+    }
+
     async init() {
         await this.db.init();
 
@@ -48,6 +65,7 @@ class CalendarApp {
         this.events = await this.db.getAll('events');
         this.calendars = await this.db.getAll('calendars');
         this.images = await this.db.getAll('images');
+        this.images = this.normalizeImageEntries(this.images);
 
         // Ensure at least one calendar
         if (!this.calendars.length) {
@@ -125,6 +143,36 @@ class CalendarApp {
         this.refreshCalendarEvents();
     }
 
+    async extractImageMetadata(dataUrl) {
+        if (!dataUrl) {
+            return { averageColor: '#f5f5f5' };
+        }
+        return new Promise((resolve) => {
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                canvas.width = 1;
+                canvas.height = 1;
+                const ctx = canvas.getContext('2d');
+                if (!ctx) {
+                    resolve({ averageColor: '#f5f5f5' });
+                    return;
+                }
+                try {
+                    ctx.drawImage(img, 0, 0, 1, 1);
+                    const [r, g, b] = ctx.getImageData(0, 0, 1, 1).data;
+                    const toHex = (value) => value.toString(16).padStart(2, '0');
+                    resolve({ averageColor: `#${toHex(r)}${toHex(g)}${toHex(b)}` });
+                } catch (error) {
+                    resolve({ averageColor: '#f5f5f5' });
+                }
+            };
+            img.onerror = () => resolve({ averageColor: '#f5f5f5' });
+            img.src = dataUrl;
+        });
+    }
+
     /* =======================
        Calendar & views
     ======================= */
@@ -150,6 +198,7 @@ class CalendarApp {
             editable: true,
             selectable: true,
             selectMirror: true,
+            eventContent: (info) => this.renderEventContent(info),
             eventClick: (info) => {
                 const event = this.events.find(e => e.id === info.event.id);
                 if (event) {
@@ -218,14 +267,91 @@ class CalendarApp {
         );
 
         visibleEvents.forEach(ev => {
-            this.fullCalendar.addEvent({
+            const isRecurring = ev.recurrence && ev.recurrence.type !== 'none';
+
+            const fcEvent = {
                 id: ev.id,
                 title: ev.name,
-                start: ev.start,
-                end: ev.end,
+                editable: !isRecurring, // Disable drag/drop/resize for recurring events
                 extendedProps: { calendar: ev.calendar }
-            });
+            };
+
+            if (isRecurring) {
+                const recurrence = ev.recurrence;
+                const rrule = {
+                    dtstart: ev.start,
+                    until: recurrence.until || null,
+                };
+
+                // For recurring events, duration is used instead of start/end times on each instance
+                const duration = new Date(ev.end) - new Date(ev.start);
+                fcEvent.duration = { milliseconds: duration };
+
+                switch (recurrence.type) {
+                    case 'daily':
+                        rrule.freq = 'daily';
+                        break;
+                    case 'weekly':
+                        rrule.freq = 'weekly';
+                        break;
+                    case 'biweekly':
+                        rrule.freq = 'weekly';
+                        rrule.interval = 2;
+                        break;
+                    case 'custom':
+                        rrule.freq = 'weekly';
+                        rrule.interval = recurrence.intervalWeeks || 1;
+                        // Map number (0=Sun) to RRULE string ('SU', 'MO'...)
+                        rrule.byweekday = recurrence.days.map(d => ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'][d]);
+                        break;
+                }
+                
+                fcEvent.rrule = rrule;
+            } else {
+                // For non-recurring events
+                fcEvent.start = ev.start;
+                fcEvent.end = ev.end;
+            }
+
+            this.fullCalendar.addEvent(fcEvent);
         });
+    }
+
+    renderEventContent(info) {
+        const eventData = this.events.find(e => e.id === info.event.id);
+        const imageEntry = this.findEventImage(eventData);
+        const wrapper = document.createElement('div');
+        wrapper.className = 'custom-event-content';
+
+        if (imageEntry?.url) {
+            const img = document.createElement('img');
+            img.src = imageEntry.url;
+            img.alt = info.event.title;
+            img.style.objectPosition = `${imageEntry.cropX}% ${imageEntry.cropY}%`;
+            img.style.backgroundColor = imageEntry.averageColor;
+            wrapper.appendChild(img);
+        }
+
+        const titleEl = document.createElement('div');
+        titleEl.className = 'event-title';
+        titleEl.textContent = info.event.title;
+        wrapper.appendChild(titleEl);
+
+        return { domNodes: [wrapper] };
+    }
+
+    findEventImage(event) {
+        if (!event) return null;
+        const normalizedName = (event.name || '').trim().toLowerCase();
+        const categoryMatches = this.images.filter(img => img.category && img.category === normalizedName);
+        let match = categoryMatches.find(img => img.calendar === event.calendar);
+        if (!match) {
+            match = categoryMatches.find(img => img.calendar === 'all');
+        }
+        if (match) {
+            return match;
+        }
+        return this.images.find(img => !img.category && img.calendar === event.calendar) || null;
     }
 
     /* =======================
@@ -273,10 +399,14 @@ class CalendarApp {
         const date = els.eventDate.value;
         const startTime = els.eventStartTime.value;
         const endTime = els.eventEndTime.value;
-        const recurrenceType = els.eventRecurrence.value || 'none';
-
         if (!calendar || !name || !date || !startTime || !endTime) {
             alert('Please fill all required fields.');
+            return;
+        }
+
+        const recurrencePayload = this.ui.getRecurrencePayload();
+        if (recurrencePayload.type === 'custom' && (!recurrencePayload.days || !recurrencePayload.days.length)) {
+            alert('Please select at least one weekday for custom recurrence.');
             return;
         }
 
@@ -305,9 +435,7 @@ class CalendarApp {
         eventObj.name = name;
         eventObj.start = startISO;
         eventObj.end = endISO;
-        eventObj.recurrence = {
-            type: recurrenceType
-        };
+        eventObj.recurrence = { ...recurrencePayload };
         if (eventObj.hasImage === undefined) {
             eventObj.hasImage = false;
         }
@@ -325,7 +453,12 @@ class CalendarApp {
             end: '',
             createdAt: null,
             updatedAt: null,
-            recurrence: { type: 'none' },
+            recurrence: {
+                type: 'none',
+                days: [],
+                intervalWeeks: 1,
+                until: null
+            },
             hasImage: false
         };
     }
@@ -378,7 +511,7 @@ class CalendarApp {
             name: '',
             start: `${startDateStr}T${startTimeStr}:00`,
             end: `${startDateStr}T${endTimeStr}:00`,
-            recurrence: { type: 'none' }
+            recurrence: this.createEmptyEvent().recurrence
         });
         this.ui.elements.eventOverlay.classList.remove('hidden');
     }
@@ -409,7 +542,7 @@ class CalendarApp {
             name: '',
             start: `${dateStr}T${startTimeStr}:00`,
             end: `${dateStr}T${endTimeStr}:00`,
-            recurrence: { type: 'none' }
+            recurrence: this.createEmptyEvent().recurrence
         });
         this.ui.elements.eventOverlay.classList.remove('hidden');
     }
@@ -422,52 +555,71 @@ class CalendarApp {
        Images
     ======================= */
 
-    async saveCalendarImage(calendarName, dataUrl) {
+    async saveCalendarImage(calendarName, dataUrl, crop = {}) {
         const id = `calendar:${calendarName}:__self__`;
+        const metadata = await this.extractImageMetadata(dataUrl);
+        const normalizedCropX = Number.isFinite(Number(crop.cropX)) ? Number(crop.cropX) : 50;
+        const normalizedCropY = Number.isFinite(Number(crop.cropY)) ? Number(crop.cropY) : 50;
         const imageEntry = {
             id,
             calendar: calendarName,
             category: null,
             url: dataUrl,
+            cropX: normalizedCropX,
+            cropY: normalizedCropY,
+            averageColor: metadata.averageColor,
             createdAt: Date.now(),
             updatedAt: Date.now()
         };
         await this.db.save('images', imageEntry);
 
+        const normalizedEntry = this.normalizeImageEntry(imageEntry);
         const existingIndex = this.images.findIndex(img => img.id === id);
         if (existingIndex >= 0) {
-            this.images[existingIndex] = imageEntry;
+            this.images[existingIndex] = normalizedEntry;
         } else {
-            this.images.push(imageEntry);
+            this.images.push(normalizedEntry);
         }
+        this.refreshCalendarEvents();
     }
 
-    async saveCategoryImage(scope, category, dataUrl) {
-        const normalizedCat = category.toLowerCase();
+    async saveCategoryImage(scope, category, dataUrl, crop = {}) {
+        const normalizedCat = category.trim().toLowerCase();
         const id = `category:${scope}:${normalizedCat}`;
+        const metadata = await this.extractImageMetadata(dataUrl);
+        const normalizedCropX = Number.isFinite(Number(crop.cropX)) ? Number(crop.cropX) : 50;
+        const normalizedCropY = Number.isFinite(Number(crop.cropY)) ? Number(crop.cropY) : 50;
         const imageEntry = {
             id,
             calendar: scope,
             category: normalizedCat,
             url: dataUrl,
+            cropX: normalizedCropX,
+            cropY: normalizedCropY,
+            averageColor: metadata.averageColor,
             createdAt: Date.now(),
             updatedAt: Date.now()
         };
         await this.db.save('images', imageEntry);
 
+        const normalizedEntry = this.normalizeImageEntry(imageEntry);
         const existingIndex = this.images.findIndex(img => img.id === id);
         if (existingIndex >= 0) {
-            this.images[existingIndex] = imageEntry;
+            this.images[existingIndex] = normalizedEntry;
         } else {
-            this.images.push(imageEntry);
+            this.images.push(normalizedEntry);
         }
 
-        this.events
-            .filter(ev => ev.name.toLowerCase() === normalizedCat &&
-                (scope === 'all' || ev.calendar === scope))
-            .forEach(ev => {
-                ev.hasImage = true;
-                this.db.save('events', ev);
-            });
+        const matchingEvents = this.events.filter(ev =>
+            ev.name.toLowerCase() === normalizedCat &&
+            (scope === 'all' || ev.calendar === scope)
+        );
+
+        await Promise.all(matchingEvents.map(ev => {
+            ev.hasImage = true;
+            return this.db.save('events', ev);
+        }));
+
+        this.refreshCalendarEvents();
     }
 }
