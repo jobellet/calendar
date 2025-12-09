@@ -4,10 +4,19 @@ class ImageService {
         this.images = [];
     }
 
-    async load() {
+    async load(includeDeleted = false) {
         this.images = await this.db.getAll('images');
         this.images = this._normalizeEntries(this.images);
-        return this.images;
+        if (includeDeleted) return this.images;
+        return this.images.filter(img => !img.deleted);
+    }
+
+    async delete(id) {
+        const img = this.images.find(i => i.id === id);
+        if (img) {
+            img.deleted = true;
+            await this._save(img);
+        }
     }
 
     findEventImage(event) {

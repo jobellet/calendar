@@ -535,9 +535,10 @@ class CalendarApp {
 
         this.ui.showToast('Syncing with MEGA...', 'info');
 
-        const events = this.eventService.getAll();
-        const calendars = this.calendarService.getAll();
-        const images = await this.imageService.load(); // Reload to get current state if needed
+        // Pass includeDeleted=true to sync everything including tombstones
+        const events = this.eventService.getAll(true);
+        const calendars = this.calendarService.getAll(true);
+        const images = await this.imageService.load(true);
 
         const syncedData = await this.megaSync.sync(events, calendars, images);
 

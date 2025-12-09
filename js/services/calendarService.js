@@ -26,12 +26,24 @@ class CalendarService {
         };
     }
 
-    getAll() {
-        return this.calendars;
+    getAll(includeDeleted = false) {
+        if (includeDeleted) {
+            return this.calendars;
+        }
+        return this.calendars.filter(c => !c.deleted);
     }
 
     getVisible() {
         return this.visibleCalendars;
+    }
+
+    async delete(name) {
+        const cal = this.calendars.find(c => c.name === name);
+        if (cal) {
+            cal.deleted = true;
+            this.visibleCalendars.delete(name);
+            await this.db.save('calendars', cal);
+        }
     }
 
     async add(name) {
