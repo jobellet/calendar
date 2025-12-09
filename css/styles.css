@@ -793,3 +793,43 @@ button[type="button"].cancel-btn:hover {
         transform: scale(1);
     }
 }
+
+/* Event Modal Styles */
+.event-all-day-group {
+    display: flex;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 500;
+    cursor: pointer;
+    user-select: none;
+    flex-direction: row; /* Force row layout */
+}
+
+.checkbox-label input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    margin: 0;
+    cursor: pointer;
+    accent-color: var(--primary-color);
+}
+
+/* Datetime Grid */
+.datetime-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    align-items: start;
+}
+
+/* Responsive adjustments for modal */
+@media (max-width: 500px) {
+    .datetime-grid {
+        grid-template-columns: 1fr; /* Stack on small screens */
+    }
+}

@@ -75,6 +75,7 @@ class EventService {
             name: '',
             start: '',
             end: '',
+            allDay: false,
             createdAt: null,
             updatedAt: null,
             recurrence: {

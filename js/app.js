@@ -318,9 +318,31 @@ class CalendarApp {
             const calendarName = info.resource ? info.resource.id :
                 (this.calendarService.getAll()[0]?.name || 'Main');
 
-            // If the selection is just a click (start == end), ignore it (dateClick handles it)
-            // But FullCalendar 'select' usually implies a range.
-            this.openEventCreationFromRange(info.start, info.end, calendarName);
+            // Check if it is a single day selection in Month view (start + 1 day = end)
+            // In dayGridMonth, select info usually has start at 00:00 and end at 00:00 next day.
+            // If the difference is exactly 24 hours, it's a single day click.
+            // The user wants single taps to open Day View.
+            // FullCalendar's dateClick handles single taps on cells.
+            // FullCalendar's select handles drags.
+            // However, depending on config, select might fire on click too.
+            // We check duration.
+            const diffTime = Math.abs(info.end - info.start);
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+            // If it's effectively 1 day (or less, though select usually snaps to days in month view)
+            // AND we are in month view
+            if (this.fullCalendar.view.type === 'dayGridMonth' && diffDays <= 1) {
+                 // Single day selection -> Ignore here, let dateClick handle it
+                 // OR manually switch view if dateClick isn't firing (but it should be)
+                 // Actually, if we return here, dateClick should have fired or will fire.
+                 // But wait, if 'selectable' is true, does 'dateClick' still fire? Yes.
+                 // But if we select, we might want to unselect.
+                 this.fullCalendar.unselect();
+                 return;
+            }
+
+            // Otherwise, it's a multi-day selection or a time-range selection in other views.
+            this.openEventCreationFromRange(info.start, info.end, calendarName, info.allDay);
         }
     }
 
@@ -458,6 +480,7 @@ class CalendarApp {
             title: ev.name,
             editable: !isRecurring,
             resourceId: ev.calendar,
+            allDay: ev.allDay || false,
             extendedProps: { calendar: ev.calendar }
         };
 
@@ -505,7 +528,7 @@ class CalendarApp {
         this.openEventCreationFromRange(startDate, endDate);
     }
 
-    openEventCreationFromRange(start, end, calendarName) {
+    openEventCreationFromRange(start, end, calendarName, allDay = false) {
         const defaultCalendar = calendarName || this.calendarService.getAll()[0]?.name || 'Main';
         const eventData = {
             id: '',
@@ -513,6 +536,7 @@ class CalendarApp {
             name: '',
             start: start.toISOString(),
             end: end.toISOString(),
+            allDay: allDay,
             recurrence: { type: 'none' }
         };
         this.ui.populateEventForm(eventData);

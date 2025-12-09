@@ -188,20 +188,32 @@
                     <img id="event-image-preview" class="event-image-preview" src="" alt="Event Image Preview">
                 </div>
 
-                <label>
-                    Date
-                    <input type="date" id="event-date" required>
-                </label>
+                <div class="event-all-day-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="event-all-day">
+                        All day
+                    </label>
+                </div>
 
-                <label>
-                    Start time
-                    <input type="time" id="event-start-time" required>
-                </label>
+                <div class="datetime-grid">
+                    <label>
+                        Start Date
+                        <input type="date" id="event-date" required>
+                    </label>
+                    <label id="event-start-time-label">
+                        Start Time
+                        <input type="time" id="event-start-time" required>
+                    </label>
 
-                <label>
-                    End time
-                    <input type="time" id="event-end-time" required>
-                </label>
+                    <label id="event-end-date-label" style="display:none;">
+                        End Date
+                        <input type="date" id="event-end-date">
+                    </label>
+                    <label id="event-end-time-label">
+                        End Time
+                        <input type="time" id="event-end-time" required>
+                    </label>
+                </div>
 
                 <label>
                     Recurrence
