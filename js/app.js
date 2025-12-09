@@ -13,6 +13,8 @@ class CalendarApp {
         this.ui = new UI();
         this.megaSync = new MegaSync();
         this.fullCalendar = null;
+        this.hoursViewMode = 'auto'; // 'auto' or 'manual'
+        this.hoursViewCenterTime = null;
     }
 
     async init() {
@@ -128,21 +130,28 @@ class CalendarApp {
 
     updateHoursViewWindow() {
         if (!this.fullCalendar) return;
-        const now = new Date();
 
-        // Calculate start of today (midnight)
-        const startOfDay = new Date(now);
-        startOfDay.setHours(0, 0, 0, 0);
+        let centerMs;
+        if (this.hoursViewMode === 'manual' && this.hoursViewCenterTime) {
+            const d = this.hoursViewCenterTime;
+            centerMs = d.getHours() * 3600000 + d.getMinutes() * 60000 + d.getSeconds() * 1000;
+        } else {
+            const now = new Date();
+            const startOfDay = new Date(now);
+            startOfDay.setHours(0, 0, 0, 0);
+            centerMs = now.getTime() - startOfDay.getTime();
 
-        const msSinceMidnight = now.getTime() - startOfDay.getTime();
+            // Keep center time synced in case we switch to manual
+            this.hoursViewCenterTime = now;
+        }
 
         // Window: -15 minutes to +90 minutes
         const START_OFFSET_MS = 15 * 60 * 1000;
         const END_OFFSET_MS = 90 * 60 * 1000;
         const DURATION_MS = START_OFFSET_MS + END_OFFSET_MS; // 105 minutes
 
-        let startMs = msSinceMidnight - START_OFFSET_MS;
-        let endMs = msSinceMidnight + END_OFFSET_MS;
+        let startMs = centerMs - START_OFFSET_MS;
+        let endMs = centerMs + END_OFFSET_MS;
 
         // Clamp to 0-24h
         if (startMs < 0) {
@@ -204,6 +213,22 @@ class CalendarApp {
         this.fullCalendar.setOption('slotMinTime', minTime);
         this.fullCalendar.setOption('slotMaxTime', maxTime);
         // this.fullCalendar.scrollToTime(minTime); // Not needed if we stretch perfectly, but good safety
+    }
+
+    shiftHoursView(minutes) {
+        this.hoursViewMode = 'manual';
+        if (!this.hoursViewCenterTime) {
+            this.hoursViewCenterTime = new Date();
+        }
+        // Shift
+        this.hoursViewCenterTime = new Date(this.hoursViewCenterTime.getTime() + minutes * 60000);
+        this.updateHoursViewWindow();
+    }
+
+    resetHoursView() {
+        this.hoursViewMode = 'auto';
+        this.hoursViewCenterTime = new Date();
+        this.updateHoursViewWindow();
     }
 
     refreshCalendarResources() {

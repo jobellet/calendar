@@ -57,6 +57,11 @@ class UI {
             // Image Preview Elements
             imgCalendarPreview: document.getElementById('img-calendar-preview'),
             imgCategoryPreview: document.getElementById('img-category-preview'),
+            // Hours View Controls
+            hoursViewControls: document.getElementById('hours-view-controls'),
+            hoursUpBtn: document.getElementById('hours-up-btn'),
+            hoursDownBtn: document.getElementById('hours-down-btn'),
+            hoursResetBtn: document.getElementById('hours-reset-btn'),
             // Mobile elements
             mobileMenuToggle: document.querySelector('.mobile-menu-toggle'),
             sidebarOverlay: document.getElementById('sidebar-overlay'),
@@ -504,12 +509,36 @@ class UI {
                 this.app.openEventCreationAt(hours, minutes);
             });
         }
+
+        // Hours View Controls
+        if (this.elements.hoursUpBtn) {
+            this.elements.hoursUpBtn.addEventListener('click', () => {
+                this.app.shiftHoursView(-30); // Shift earlier by 30 mins
+            });
+        }
+        if (this.elements.hoursDownBtn) {
+            this.elements.hoursDownBtn.addEventListener('click', () => {
+                this.app.shiftHoursView(30); // Shift later by 30 mins
+            });
+        }
+        if (this.elements.hoursResetBtn) {
+            this.elements.hoursResetBtn.addEventListener('click', () => {
+                this.app.resetHoursView();
+            });
+        }
     }
 
     setActiveViewButton(activeBtn) {
         const buttons = this.elements.viewSelector.querySelectorAll('button');
         buttons.forEach(btn => btn.classList.remove('active'));
         activeBtn.classList.add('active');
+
+        // Toggle visibility of hours controls
+        if (activeBtn.dataset.view === 'hoursView') {
+            this.elements.hoursViewControls.style.display = 'flex';
+        } else {
+            this.elements.hoursViewControls.style.display = 'none';
+        }
     }
 
     renderCalendars(calendars, visibleCalendars) {
