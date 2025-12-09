@@ -56,6 +56,7 @@ class UI {
             mobileMenuToggle: document.querySelector('.mobile-menu-toggle'),
             sidebarOverlay: document.getElementById('sidebar-overlay'),
             leftSidebar: document.getElementById('left-sidebar'),
+            closeSidebarBtn: document.getElementById('close-sidebar-btn'),
             fabAddEvent: document.querySelector('.fab-add-event'),
         };
     }
@@ -352,6 +353,13 @@ class UI {
 
         if (this.elements.sidebarOverlay) {
             this.elements.sidebarOverlay.addEventListener('click', () => {
+                this.elements.leftSidebar.classList.remove('open');
+                this.elements.sidebarOverlay.classList.remove('visible');
+            });
+        }
+
+        if (this.elements.closeSidebarBtn) {
+            this.elements.closeSidebarBtn.addEventListener('click', () => {
                 this.elements.leftSidebar.classList.remove('open');
                 this.elements.sidebarOverlay.classList.remove('visible');
             });

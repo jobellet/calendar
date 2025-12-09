@@ -105,6 +105,11 @@ body {
     /* Hidden on desktop */
 }
 
+/* Close Sidebar Button (Mobile) */
+.close-sidebar-btn {
+    display: none;
+}
+
 /* Sync Section */
 #sync-section {
     display: flex;
@@ -582,19 +587,55 @@ button[type="button"].cancel-btn:hover {
         visibility: visible;
     }
 
-    /* Right sidebar (Time Strip) - hidden on mobile for now, 
-       can be toggled if we really need it, but drag-create is hard on mobile 
-       so we rely on "+ Button" FAB */
+    /* Right sidebar (Time Strip) - visible on mobile as a tiny strip */
     #right-sidebar {
-        display: none;
+        display: flex;
+        position: fixed;
+        right: 0;
+        top: 0;
+        bottom: 0;
+        width: 30px; /* Tiny space */
+        z-index: 800; /* Below sidebar overlay but above calendar */
+        background: rgba(255, 255, 255, 0.6);
+        backdrop-filter: blur(4px);
+        padding: 0;
+        border-left: 1px solid rgba(0,0,0,0.05);
+    }
+
+    #time-hover-indicator {
+        font-size: 0; /* Hide text on mobile */
+        width: 100%;
+        height: 2px;
+        background: var(--primary-color);
+        padding: 0;
+    }
+
+    #time-hover-help {
+        display: none !important;
     }
 
     /* Main Content adjustments */
     #main-content {
         padding: 0;
+        padding-right: 30px; /* Space for the right strip */
         grid-column: 1;
         flex: 1;
         overflow: hidden;
+    }
+
+    .close-sidebar-btn {
+        display: block;
+        position: absolute;
+        top: 15px;
+        right: 15px;
+        background: transparent;
+        border: none;
+        font-size: 28px;
+        line-height: 1;
+        color: var(--text-muted);
+        cursor: pointer;
+        padding: 5px;
+        z-index: 10;
     }
 
     #calendar {
