@@ -89,6 +89,11 @@ class CalendarApp {
     }
 
     enableHoursViewUpdates(enable) {
+        // Toggle the stretched view class
+        if (this.ui.elements.calendarEl) {
+            this.ui.elements.calendarEl.classList.toggle('view-hours-stretched', enable);
+        }
+
         if (this.hoursViewInterval) {
             clearInterval(this.hoursViewInterval);
             this.hoursViewInterval = null;
@@ -98,6 +103,12 @@ class CalendarApp {
         if (!enable && this.fullCalendar) {
             this.fullCalendar.setOption('slotMinTime', '00:00:00');
             this.fullCalendar.setOption('slotMaxTime', '24:00:00');
+
+            // Remove resize listener if it exists
+            if (this.hoursResizeListener) {
+                window.removeEventListener('resize', this.hoursResizeListener);
+                this.hoursResizeListener = null;
+            }
             return;
         }
 
@@ -105,6 +116,12 @@ class CalendarApp {
             this.updateHoursViewWindow();
             // Update every minute to keep the window moving
             this.hoursViewInterval = setInterval(() => this.updateHoursViewWindow(), 60000);
+
+            // Add resize listener to keep stretching correct
+            if (!this.hoursResizeListener) {
+                this.hoursResizeListener = () => requestAnimationFrame(() => this.updateHoursViewWindow());
+                window.addEventListener('resize', this.hoursResizeListener);
+            }
         }
     }
 
@@ -118,12 +135,24 @@ class CalendarApp {
 
         const msSinceMidnight = now.getTime() - startOfDay.getTime();
 
-        // -1 hour, +2 hours
-        const startMs = msSinceMidnight - (60 * 60 * 1000);
-        const endMs = msSinceMidnight + (2 * 60 * 60 * 1000);
+        // 3 Hours window: -1 hour, +2 hours
+        const DURATION_HOURS = 3;
+        const DURATION_MS = DURATION_HOURS * 60 * 60 * 1000;
+
+        let startMs = msSinceMidnight - (60 * 60 * 1000);
+        let endMs = startMs + DURATION_MS;
+
+        // Clamp to 0-24h
+        if (startMs < 0) {
+            startMs = 0;
+            endMs = DURATION_MS;
+        }
+        if (endMs > 24 * 60 * 60 * 1000) {
+            endMs = 24 * 60 * 60 * 1000;
+            startMs = endMs - DURATION_MS;
+        }
 
         const formatDuration = (ms) => {
-            if (ms < 0) ms = 0; // Clamp to start of day
             const totalSeconds = Math.floor(ms / 1000);
             const h = Math.floor(totalSeconds / 3600);
             const m = Math.floor((totalSeconds % 3600) / 60);
@@ -134,16 +163,43 @@ class CalendarApp {
         const minTime = formatDuration(startMs);
         const maxTime = formatDuration(endMs);
 
-        // We pad a bit to avoid cutting off events exactly at the edge
-        // But the request is specific: -1 to +2.
+        // ---------------------------------------------------------
+        // Calculate dynamic slot height to stretch to full view height
+        // ---------------------------------------------------------
+        if (this.ui.elements.calendarEl) {
+            // Get the view content element (scroller) or approximate available space
+            // Best approximation: Calendar Client Height - Header Height
+            // Header height is roughly ~100px (Title bar + Day headers)
+            // But we can measure them dynamically if possible, or just use the container.
 
-        // Note: slotMinTime/MaxTime define the VISIBLE range of the day. 
-        // Events outside this range might be hidden or partial.
-        // It does NOT change the date.
+            // Let's try to measure the container and assume we want the *slots* to fill it.
+            // FullCalendar structure: .fc-header-toolbar (top), .fc-view-harness (content)
+            // .fc-view-harness usually fills the rest.
+            // Inside, .fc-scrollgrid etc.
+
+            const calendarHeight = this.ui.elements.calendarEl.clientHeight;
+            // Measure toolbar if possible
+            const toolbar = this.ui.elements.calendarEl.querySelector('.fc-toolbar');
+            const header = this.ui.elements.calendarEl.querySelector('.fc-col-header');
+
+            const toolbarHeight = toolbar ? toolbar.offsetHeight : 50;
+            const headerHeight = header ? header.offsetHeight : 30; // approx if not rendered yet
+
+            const availableHeight = calendarHeight - toolbarHeight - headerHeight - 20; // -20 buffer
+
+            // Duration is 3 hours. Slot duration is 30 mins (default).
+            // Slots count = 3 * 2 = 6 slots.
+            // But verify slotDuration setting? It's default '00:30:00'.
+            const slotsCount = DURATION_HOURS * 2;
+
+            const newSlotHeight = Math.max(20, Math.floor(availableHeight / slotsCount));
+
+            this.ui.elements.calendarEl.style.setProperty('--fc-slot-height', `${newSlotHeight}px`);
+        }
 
         this.fullCalendar.setOption('slotMinTime', minTime);
         this.fullCalendar.setOption('slotMaxTime', maxTime);
-        this.fullCalendar.scrollToTime(minTime); // Ensure we are scrolled to top
+        // this.fullCalendar.scrollToTime(minTime); // Not needed if we stretch perfectly, but good safety
     }
 
     refreshCalendarResources() {
@@ -462,7 +518,7 @@ class CalendarApp {
 
             if (syncedData.calendars) {
                 this.calendarService.calendars = syncedData.calendars;
-                 // Maintain visibility set
+                // Maintain visibility set
                 syncedData.calendars.forEach(cal => {
                     if (cal.isVisible !== false) this.calendarService.visibleCalendars.add(cal.name);
                     else this.calendarService.visibleCalendars.delete(cal.name);
