@@ -65,6 +65,79 @@ class UI {
         this.app = app;
         this.addEventListeners();
         this.setupEventImageHandling();
+        this.setupContextMenu();
+    }
+
+    setupContextMenu() {
+        const createMenu = (x, y, options) => {
+            // Remove existing
+            const existing = document.querySelector('.context-menu');
+            if (existing) existing.remove();
+
+            const menu = document.createElement('div');
+            menu.className = 'context-menu glass-panel';
+            menu.style.top = `${y}px`;
+            menu.style.left = `${x}px`;
+
+            options.forEach(opt => {
+                const item = document.createElement('div');
+                item.className = 'context-menu-item';
+                item.textContent = opt.label;
+                item.onclick = (e) => {
+                    e.stopPropagation();
+                    opt.action();
+                    menu.remove();
+                };
+                menu.appendChild(item);
+            });
+
+            document.body.appendChild(menu);
+
+            // Close on click elsewhere
+            const close = () => {
+                menu.remove();
+                document.removeEventListener('click', close);
+            };
+            setTimeout(() => document.addEventListener('click', close), 0);
+        };
+
+        // Context menu listener on calendar
+        if (this.elements.calendarEl) {
+            this.elements.calendarEl.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                let target = e.target;
+
+                // Check if Right Clicked on Event
+                const eventEl = target.closest('.fc-event');
+                if (eventEl) {
+                    // FullCalendar stores event ID in some internal way or we can find it
+                    // The safest way with FC v5/6 is to use the API, but here we are in raw DOM handler.
+                    // FC renders `fc-event-main` usually.
+                    // Let's try to get the ID from API by matching element? No, expensive.
+                    // However, we can use `clickedEvent` if we track it?
+                    // Better: FullCalendar usually exposes `eventDidMount`. 
+                    // But to keep it simple without refactoring render:
+                    // We can assume we can handle "event context menu" via `eventContent`? No.
+                    // Let's rely on standard logic:
+                    // We need to map DOM element to Event.
+
+                    // Actually, FC has `eventClick` but not `eventContextMenu`.
+                    // We can listen globally and check intersection?
+                    // OR: Use `eventDidMount` to attach context listener? 
+                    // Since we are outside `initFullCalendar` here, let's use a workaround:
+                    // `fc-event` usually doesn't have ID on it in v5+.
+                    // But we can check `changeView`? 
+
+                    // Correct Approach: We modified `renderEventContent` in app.js.
+                    // We can attach the ID there? No, `eventContent` returns DOM nodes.
+                    // We can attach a dataset ID there?
+                    return; // Wait for app.js update to attach ID to DOM?
+                }
+            });
+
+            // Wait, we can't easily get the event ID from just `e.target` in FC v5 unless we added it.
+            // Let's update `app.js` renderEventContent to add dataset-id!
+        }
     }
 
     addEventListeners() {

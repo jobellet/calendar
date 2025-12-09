@@ -246,6 +246,7 @@ class CalendarApp {
         const imageEntry = this.imageService.findEventImage(eventData);
         const wrapper = document.createElement('div');
         wrapper.className = 'custom-event-content';
+        wrapper.dataset.eventId = info.event.id; // Store ID for Context Menu
 
         if (imageEntry?.url) {
             wrapper.style.backgroundColor = imageEntry.averageColor; // Fill background for event
@@ -325,13 +326,54 @@ class CalendarApp {
     async handleEventModify(info) {
         const event = this.eventService.find(info.event.id);
         if (event) {
-            await this.eventService.save({
+            const updates = {
                 ...event,
                 start: info.event.start.toISOString(),
                 end: info.event.end ? info.event.end.toISOString() : event.end
-            });
+            };
+
+            // Handle Resource (Calendar) Change
+            if (info.newResource && info.newResource.id !== event.calendar) {
+                updates.calendar = info.newResource.id;
+            }
+
+            await this.eventService.save(updates);
             this.refreshCalendarEvents();
         }
+    }
+
+    copyEvent(eventId) {
+        const event = this.eventService.find(eventId);
+        if (event) {
+            this.clipboard = JSON.parse(JSON.stringify(event));
+            this.ui.showToast(`Copied "${event.name}"`, 'info');
+        }
+    }
+
+    async pasteEvent(date, calendarId) {
+        if (!this.clipboard) {
+            this.ui.showToast('Clipboard empty', 'error');
+            return;
+        }
+
+        const duration = new Date(this.clipboard.end) - new Date(this.clipboard.start);
+        const newStart = new Date(date);
+        const newEnd = new Date(newStart.getTime() + duration);
+
+        const newEvent = {
+            ...this.clipboard,
+            id: '', // New ID will be generated
+            calendar: calendarId || this.clipboard.calendar,
+            start: newStart.toISOString(),
+            end: newEnd.toISOString()
+        };
+
+        // Remove recurrence from copy or keep? Usually copy logic keeps it, but maybe better to prompt?
+        // Let's keep it simple: exact clone.
+
+        await this.eventService.save(newEvent);
+        this.refreshCalendarEvents();
+        this.ui.showToast('Event pasted', 'success');
     }
 
     changeView(view) {
