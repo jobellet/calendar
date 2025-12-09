@@ -49,12 +49,22 @@ class MegaSync {
 
             if (file) {
                 console.log('[MegaSync] Found remote file, downloading...');
-                const buffer = await file.downloadBuffer();
-                const jsonStr = new TextDecoder("utf-8").decode(buffer);
                 try {
-                    remoteData = JSON.parse(jsonStr);
-                } catch (e) {
-                    console.error('[MegaSync] Failed to parse remote JSON:', e);
+                    const buffer = await file.downloadBuffer();
+                    const jsonStr = new TextDecoder("utf-8").decode(buffer);
+                    try {
+                        remoteData = JSON.parse(jsonStr);
+                    } catch (e) {
+                        console.error('[MegaSync] Failed to parse remote JSON:', e);
+                    }
+                } catch (err) {
+                    console.error('[MegaSync] Error downloading/decrypting remote file:', err);
+                    if (err.message && err.message.includes('MAC verification failed')) {
+                        console.warn('[MegaSync] Remote file is corrupted (MAC verification failed). Treating as empty and will overwrite.');
+                        // remoteData remains null, so we will sync local -> remote (overwriting corrupted file)
+                    } else {
+                        throw err; // Re-throw other errors
+                    }
                 }
             }
 
