@@ -58,7 +58,7 @@ class Database {
             const store = transaction.objectStore(storeName);
 
             const now = Date.now();
-            if (storeName === 'events' || storeName === 'images') {
+            if (storeName === 'events' || storeName === 'images' || storeName === 'calendars') {
                 if (!item.createdAt) {
                     item.createdAt = now;
                 }

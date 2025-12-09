@@ -84,11 +84,6 @@ class MegaSync {
 
             console.log('[MegaSync] Uploading merged data...');
 
-            if (file) {
-                // Delete old file to avoid duplication/issues, robust upload creates new one.
-                await file.delete(true);
-            }
-
             // Robust upload with retries and explicit size
             await this.storage.upload({
                 name: FILENAME,
@@ -165,10 +160,12 @@ class MegaSync {
                     result.push(r);
                 }
             } else if (l) {
-                // Only local
+                // Only local: it's either new locally or was deleted on remote (and remote deleted it before we started using tombstones?)
+                // With tombstones, if it was deleted remotely, it would exist in 'r' as {deleted: true}
+                // So if 'r' is missing, it implies 'l' is new.
                 result.push(l);
             } else {
-                // Only remote
+                // Only remote: implies new on remote.
                 result.push(r);
             }
         }

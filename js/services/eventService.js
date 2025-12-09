@@ -10,12 +10,24 @@ class EventService {
         return this.events;
     }
 
-    getAll() {
-        return this.events;
+    getAll(includeDeleted = false) {
+        if (includeDeleted) {
+            return this.events;
+        }
+        return this.events.filter(e => !e.deleted);
     }
 
     find(id) {
         return this.events.find(e => e.id === id);
+    }
+
+    async delete(id) {
+        const event = this.find(id);
+        if (!event) return;
+
+        this.historyService.push(this.events);
+        event.deleted = true;
+        await this.db.save('events', event);
     }
 
     async save(eventData) {

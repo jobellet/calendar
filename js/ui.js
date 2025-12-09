@@ -114,9 +114,9 @@ class UI {
                     const options = [
                         { label: 'Copy Event', action: () => this.app.copyEvent(eventId) },
                         {
-                            label: 'Delete Event', action: () => {
+                            label: 'Delete Event', action: async () => {
                                 if (confirm('Delete this event?')) {
-                                    this.app.eventService.delete(eventId);
+                                    await this.app.eventService.delete(eventId);
                                     this.app.refreshCalendarEvents();
                                 }
                             }
