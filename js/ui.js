@@ -332,10 +332,11 @@ class UI {
             };
 
             // Drag Start
-            container.addEventListener('mousedown', (e) => {
+            const handleDragStart = (e) => {
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
                 isDragging = true;
-                startY = e.clientY;
-                startMinutes = getMinutesFromY(e.clientY);
+                startY = clientY;
+                startMinutes = getMinutesFromY(clientY);
 
                 // Create/Update visual selection div
                 let selection = document.getElementById('time-strip-selection');
@@ -350,33 +351,44 @@ class UI {
                 }
 
                 const rect = container.getBoundingClientRect();
-                const relativeY = Math.min(Math.max(e.clientY - rect.top, 0), rect.height);
+                const relativeY = Math.min(Math.max(clientY - rect.top, 0), rect.height);
                 selection.style.top = `${relativeY}px`;
                 selection.style.height = '1px';
                 selection.style.display = 'block';
-            });
+            };
+
+            container.addEventListener('mousedown', handleDragStart);
+            container.addEventListener('touchstart', (e) => {
+                // Prevent scrolling when interacting with the time strip
+                if (e.cancelable) e.preventDefault();
+                handleDragStart(e);
+            }, { passive: false });
 
             // Dragging (Selection Update)
-            window.addEventListener('mousemove', (e) => {
+            const handleDragMove = (e) => {
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                const target = e.touches ? document.elementFromPoint(e.touches[0].clientX, clientY) : e.target;
+
                 if (!isDragging) {
                     // Hover effect only
-                    if (container.contains(e.target)) {
-                        const mins = getMinutesFromY(e.clientY);
+                    // On touch, hover is less relevant, but we keep logic consistent
+                    if (!e.touches && container.contains(target)) {
+                        const mins = getMinutesFromY(clientY);
                         indicator.textContent = formatTime(mins);
                         const rect = container.getBoundingClientRect();
-                        const relativeY = Math.min(Math.max(e.clientY - rect.top, 0), rect.height);
+                        const relativeY = Math.min(Math.max(clientY - rect.top, 0), rect.height);
                         indicator.style.top = `${relativeY - 8}px`;
                         indicator.style.display = 'block';
-                    } else {
+                    } else if (!isDragging) {
                         indicator.style.display = 'none';
                     }
                     return;
                 }
 
                 // Update selection visual
-                const currentMinutes = getMinutesFromY(e.clientY);
+                const currentMinutes = getMinutesFromY(clientY);
                 const rect = container.getBoundingClientRect();
-                const currentY = Math.min(Math.max(e.clientY - rect.top, 0), rect.height);
+                const currentY = Math.min(Math.max(clientY - rect.top, 0), rect.height);
                 const startRelY = (startMinutes / (24 * 60)) * rect.height; // Recalculate robust start Y
 
                 const top = Math.min(startRelY, currentY);
@@ -390,14 +402,26 @@ class UI {
 
                 indicator.textContent = `${formatTime(Math.min(startMinutes, currentMinutes))} - ${formatTime(Math.max(startMinutes, currentMinutes))}`;
                 indicator.style.top = `${currentY}px`;
-            });
+                indicator.style.display = 'block';
+            };
+
+            window.addEventListener('mousemove', handleDragMove);
+            window.addEventListener('touchmove', (e) => {
+                // Prevent scrolling while dragging
+                 if (isDragging && e.cancelable) {
+                    e.preventDefault();
+                }
+                handleDragMove(e);
+            }, { passive: false });
 
             // Drag End (Create Event)
-            window.addEventListener('mouseup', (e) => {
+            const handleDragEnd = (e) => {
                 if (!isDragging) return;
                 isDragging = false;
 
-                const endMinutes = getMinutesFromY(e.clientY);
+                // For touchend, changedTouches usually has the last position
+                const clientY = e.changedTouches ? e.changedTouches[0].clientY : e.clientY;
+                const endMinutes = getMinutesFromY(clientY);
 
                 // Determine range
                 const minMins = Math.min(startMinutes, endMinutes);
@@ -415,6 +439,7 @@ class UI {
                 // Hide selection visual
                 const selection = document.getElementById('time-strip-selection');
                 if (selection) selection.style.display = 'none';
+                indicator.style.display = 'none'; // Also hide indicator
 
                 // Convert to Dates
                 const baseDate = new Date(); // Or current viewed date
@@ -426,7 +451,10 @@ class UI {
 
                 // Open modal
                 this.app.openEventCreationFromRange(start, end);
-            });
+            };
+
+            window.addEventListener('mouseup', handleDragEnd);
+            window.addEventListener('touchend', handleDragEnd);
         }
 
         // Mobile Interactions

@@ -1,0 +1,13 @@
+127.0.0.1 - - [09/Dec/2025 06:47:34] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [09/Dec/2025 06:47:34] "GET /css/styles.css HTTP/1.1" 200 -
+127.0.0.1 - - [09/Dec/2025 06:47:34] "GET /css/features.css HTTP/1.1" 200 -
+127.0.0.1 - - [09/Dec/2025 06:47:34] "GET /js/services/historyService.js HTTP/1.1" 200 -
+127.0.0.1 - - [09/Dec/2025 06:47:34] "GET /css/close-btn.css HTTP/1.1" 200 -
+127.0.0.1 - - [09/Dec/2025 06:47:34] "GET /js/db.js HTTP/1.1" 200 -
+127.0.0.1 - - [09/Dec/2025 06:47:34] "GET /css/header-img.css HTTP/1.1" 200 -
+127.0.0.1 - - [09/Dec/2025 06:47:34] "GET /js/services/imageService.js HTTP/1.1" 200 -
+127.0.0.1 - - [09/Dec/2025 06:47:34] "GET /js/app.js HTTP/1.1" 200 -
+127.0.0.1 - - [09/Dec/2025 06:47:34] "GET /js/services/eventService.js HTTP/1.1" 200 -
+127.0.0.1 - - [09/Dec/2025 06:47:34] "GET /js/services/calendarService.js HTTP/1.1" 200 -
+127.0.0.1 - - [09/Dec/2025 06:47:34] "GET /js/ui.js HTTP/1.1" 200 -
+127.0.0.1 - - [09/Dec/2025 06:47:34] "GET /js/mega.js HTTP/1.1" 200 -

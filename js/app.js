@@ -64,6 +64,8 @@ class CalendarApp {
             eventClick: this.handleEventClick.bind(this),
             dateClick: this.handleDateClick.bind(this),
             select: this.handleSelect.bind(this),
+            selectLongPressDelay: 300,
+            eventLongPressDelay: 300,
             eventDrop: this.handleEventModify.bind(this),
             eventResize: this.handleEventModify.bind(this),
             views: {
