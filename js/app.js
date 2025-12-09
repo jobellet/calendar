@@ -135,21 +135,23 @@ class CalendarApp {
 
         const msSinceMidnight = now.getTime() - startOfDay.getTime();
 
-        // 3 Hours window: -1 hour, +2 hours
-        const DURATION_HOURS = 3;
-        const DURATION_MS = DURATION_HOURS * 60 * 60 * 1000;
+        // Window: -15 minutes to +90 minutes
+        const START_OFFSET_MS = 15 * 60 * 1000;
+        const END_OFFSET_MS = 90 * 60 * 1000;
+        const DURATION_MS = START_OFFSET_MS + END_OFFSET_MS; // 105 minutes
 
-        let startMs = msSinceMidnight - (60 * 60 * 1000);
-        let endMs = startMs + DURATION_MS;
+        let startMs = msSinceMidnight - START_OFFSET_MS;
+        let endMs = msSinceMidnight + END_OFFSET_MS;
 
         // Clamp to 0-24h
         if (startMs < 0) {
             startMs = 0;
-            endMs = DURATION_MS;
+            // Cap at 24h if needed, or maintain duration if possible but usually 0 start implies we shift.
+            endMs = Math.min(DURATION_MS, 24 * 60 * 60 * 1000);
         }
         if (endMs > 24 * 60 * 60 * 1000) {
             endMs = 24 * 60 * 60 * 1000;
-            startMs = endMs - DURATION_MS;
+            startMs = Math.max(0, endMs - DURATION_MS);
         }
 
         const formatDuration = (ms) => {
@@ -187,12 +189,13 @@ class CalendarApp {
 
             const availableHeight = calendarHeight - toolbarHeight - headerHeight - 20; // -20 buffer
 
-            // Duration is 3 hours. Slot duration is 30 mins (default).
-            // Slots count = 3 * 2 = 6 slots.
-            // But verify slotDuration setting? It's default '00:30:00'.
-            const slotsCount = DURATION_HOURS * 2;
+            // Duration is 105 minutes. Slot duration is 30 mins (default).
+            // Slots count = 105 / 30 = 3.5 slots.
+            const slotsCount = DURATION_MS / (30 * 60 * 1000);
 
-            const newSlotHeight = Math.max(20, Math.floor(availableHeight / slotsCount));
+            // We want the total height to cover 'slotsCount' slots.
+            // newSlotHeight * slotsCount = availableHeight
+            const newSlotHeight = Math.max(20, availableHeight / slotsCount);
 
             this.ui.elements.calendarEl.style.setProperty('--fc-slot-height', `${newSlotHeight}px`);
         }
