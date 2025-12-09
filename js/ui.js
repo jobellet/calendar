@@ -38,7 +38,12 @@ class UI {
             eventName: document.getElementById('event-name'),
             eventDate: document.getElementById('event-date'),
             eventStartTime: document.getElementById('event-start-time'),
+            eventEndDate: document.getElementById('event-end-date'),
             eventEndTime: document.getElementById('event-end-time'),
+            eventAllDay: document.getElementById('event-all-day'),
+            eventStartTimeLabel: document.getElementById('event-start-time-label'),
+            eventEndDateLabel: document.getElementById('event-end-date-label'),
+            eventEndTimeLabel: document.getElementById('event-end-time-label'),
             eventRecurrence: document.getElementById('event-recurrence'),
             eventResetBtn: document.getElementById('event-reset-btn'),
             customRecurrenceOptions: document.getElementById('custom-recurrence-options'),
@@ -228,6 +233,13 @@ class UI {
         if (closeEventBtn) {
             closeEventBtn.addEventListener('click', () => {
                 this.toggleModal(this.elements.eventOverlay, false);
+            });
+        }
+
+        // All Day toggle
+        if (this.elements.eventAllDay) {
+            this.elements.eventAllDay.addEventListener('change', () => {
+                this.toggleAllDayFields();
             });
         }
 
@@ -573,7 +585,15 @@ class UI {
             this.elements.eventCalendar.value = this.elements.eventCalendar.options[0].value;
         }
 
+        const isAllDay = eventData?.allDay || false;
+        if (this.elements.eventAllDay) {
+            this.elements.eventAllDay.checked = isAllDay;
+        }
+
         if (eventData?.start) {
+            // If ISO string is just YYYY-MM-DD or we treat it as UTC, we need to be careful.
+            // But usually we store ISO with time.
+            // For allDay, FullCalendar might give us YYYY-MM-DD or YYYY-MM-DDT00:00:00.
             const startDate = new Date(eventData.start);
             this.elements.eventDate.value = startDate.toISOString().slice(0, 10);
             this.elements.eventStartTime.value = startDate.toTimeString().slice(0, 5);
@@ -584,12 +604,33 @@ class UI {
 
         if (eventData?.end) {
             const endDate = new Date(eventData.end);
+            // If it's allDay, the end date in FullCalendar is exclusive.
+            // e.g. Start: 2023-01-01, End: 2023-01-02 means just 1 day (Jan 1).
+            // But users expect "End Date" to be inclusive in a form usually, or maybe exclusive?
+            // Let's stick to standard input behavior: date input.
+            // If I pick Jan 1 to Jan 1, it's 1 day.
+            // If I pick Jan 1 to Jan 2, it's 2 days.
+            // FullCalendar exclusive end means Jan 1 to Jan 2 is 1 day.
+            // So if allDay, we might want to subtract 1 day for display if it's multi-day?
+            // Let's see how FullCalendar handles it.
+            // If I select 2 days (Jan 1, Jan 2), FC gives start=Jan 1, end=Jan 3.
+            // So display should probably be Jan 2 inclusive.
+
+            let displayEndDate = endDate;
+            if (isAllDay) {
+                 // Subtract 1 millisecond to get the previous day (inclusive end)
+                 displayEndDate = new Date(endDate.getTime() - 1);
+            }
+
+            this.elements.eventEndDate.value = displayEndDate.toISOString().slice(0, 10);
             this.elements.eventEndTime.value = endDate.toTimeString().slice(0, 5);
         } else {
+            this.elements.eventEndDate.value = '';
             this.elements.eventEndTime.value = '';
         }
 
         this.setRecurrenceValues(eventData?.recurrence);
+        this.toggleAllDayFields();
     }
 
     clearEventForm() {
@@ -636,17 +677,111 @@ class UI {
         this.elements.customRecurrenceOptions.classList.toggle('hidden', !show);
     }
 
+    toggleAllDayFields() {
+        if (!this.elements.eventAllDay) return;
+        const isAllDay = this.elements.eventAllDay.checked;
+
+        // Toggle visibility/requirements of Time fields
+        const timeDisplay = isAllDay ? 'none' : 'block';
+        if (this.elements.eventStartTime) {
+            this.elements.eventStartTime.style.display = timeDisplay;
+            this.elements.eventStartTime.required = !isAllDay;
+        }
+        if (this.elements.eventEndTime) {
+            this.elements.eventEndTime.style.display = timeDisplay;
+            this.elements.eventEndTime.required = !isAllDay;
+        }
+        if (this.elements.eventStartTimeLabel) this.elements.eventStartTimeLabel.style.display = timeDisplay;
+        if (this.elements.eventEndTimeLabel) this.elements.eventEndTimeLabel.style.display = timeDisplay;
+
+        // Toggle visibility of End Date (needed for all-day ranges)
+        // If it's not all day, we assume single day event usually, OR we could allow multi-day with time?
+        // Current implementation assumed single day for time-based events (only one date input).
+        // Let's enable End Date for All Day events.
+        // For non-all-day, we hide it to keep it simple as per original design,
+        // unless we want to support multi-day time events (e.g. 10pm to 2am next day).
+        // The original design had one date input.
+        // Let's show End Date ONLY for All Day for now to satisfy the "range" requirement.
+
+        const endDateDisplay = isAllDay ? 'block' : 'none';
+        if (this.elements.eventEndDate) {
+            this.elements.eventEndDate.style.display = endDateDisplay;
+            this.elements.eventEndDate.required = isAllDay;
+        }
+        if (this.elements.eventEndDateLabel) this.elements.eventEndDateLabel.style.display = endDateDisplay;
+    }
+
     getEventFormData() {
         const id = this.elements.eventId.value || null;
         const calendar = this.elements.eventCalendar.value;
         const name = this.elements.eventName.value.trim();
         const date = this.elements.eventDate.value;
-        const startTime = this.elements.eventStartTime.value;
-        const endTime = this.elements.eventEndTime.value;
+        const isAllDay = this.elements.eventAllDay ? this.elements.eventAllDay.checked : false;
 
-        if (!calendar || !name || !date || !startTime || !endTime) {
+        // Conditional validation
+        if (!calendar || !name || !date) {
             alert('Please fill all required fields.');
             return null;
+        }
+
+        let startISO, endISO;
+
+        if (isAllDay) {
+            const endDate = this.elements.eventEndDate.value;
+            if (!endDate) {
+                 alert('Please select an end date for all-day event.');
+                 return null;
+            }
+            // All Day: Start is 00:00, End is 00:00 of NEXT day (exclusive)
+            // But if user picks Jan 1 to Jan 1, they mean "Just Jan 1".
+            // If they pick Jan 1 to Jan 2, they mean "Jan 1 and Jan 2".
+            // So we take the end date input, add 1 day, and set to 00:00.
+            // Wait, usually "End Date: Jan 1" means inclusive.
+            // So Jan 1 to Jan 1 = 1 day.
+            // We need to construct the Date object carefully.
+
+            const s = new Date(date);
+            // Ensure local time 00:00
+            s.setHours(0,0,0,0);
+            startISO = s.toISOString(); // This might be UTC shifted if we are not careful.
+            // FullCalendar expects ISO8601.
+            // If we use simple ISO strings, it might be interpreted as UTC.
+            // But our app seems to rely on local time constructed via new Date("YYYY-MM-DD").
+            // new Date("2023-01-01") is usually UTC. new Date("2023-01-01T00:00") is local.
+            // Let's stick to what we had: `new Date('${date}T${startTime}:00')`.
+
+            // For all day, we can just use T00:00:00.
+            startISO = new Date(`${date}T00:00:00`).toISOString();
+
+            // End Date
+            // We take the input value (inclusive), add 1 day to make it exclusive for FullCalendar
+            const e = new Date(`${endDate}T00:00:00`);
+            e.setDate(e.getDate() + 1);
+            endISO = e.toISOString();
+
+            if (new Date(endISO) <= new Date(startISO)) {
+                alert('End date must be after start date.');
+                return null;
+            }
+
+        } else {
+            const startTime = this.elements.eventStartTime.value;
+            const endTime = this.elements.eventEndTime.value;
+
+            if (!startTime || !endTime) {
+                alert('Please enter start and end times.');
+                return null;
+            }
+
+            startISO = new Date(`${date}T${startTime}:00`).toISOString();
+            endISO = new Date(`${date}T${endTime}:00`).toISOString();
+
+            if (endISO <= startISO) {
+                 // Maybe it ends next day? Original app didn't seem to support that explicit input (only one date).
+                 // So we assume same day.
+                 alert('End time must be after start time.');
+                 return null;
+            }
         }
 
         const recurrence = this.getRecurrencePayload();
@@ -662,8 +797,9 @@ class UI {
             calendar,
             name,
             imageFile, // Pass the file if selected
-            start: new Date(`${date}T${startTime}:00`).toISOString(),
-            end: new Date(`${date}T${endTime}:00`).toISOString(),
+            start: startISO,
+            end: endISO,
+            allDay: isAllDay,
             recurrence
         };
     }
