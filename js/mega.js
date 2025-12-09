@@ -85,10 +85,9 @@ class MegaSync {
             console.log('[MegaSync] Uploading merged data...');
 
             // Robust upload with retries and explicit size
-            await this.storage.upload({
+            const uploadStream = this.storage.upload({
                 name: FILENAME,
                 size: buffer.byteLength,
-                source: buffer,
                 allowUploadBuffering: true,
                 handleRetries: (tries, error, cb) => {
                     if (error.code === -3 || tries < 8) { // -3 is EAGAIN
@@ -99,7 +98,10 @@ class MegaSync {
                         cb(error);
                     }
                 }
-            }).complete; // Await the .complete Promise as per tutorial
+            });
+
+            uploadStream.end(buffer);
+            await uploadStream.complete; // Await the .complete Promise as per tutorial
 
             console.log('[MegaSync] Sync complete.');
 
