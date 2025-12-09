@@ -19,7 +19,9 @@ class MegaSync {
             this.storage = new window.mega.Storage({
                 email: email,
                 password: password,
-                userAgent: 'FamilyCalendar/1.0'
+                userAgent: 'FamilyCalendar/1.0',
+                keepalive: true,
+                forceHttps: true
             });
 
             await this.storage.ready;
@@ -45,6 +47,7 @@ class MegaSync {
         try {
             // 1. Try to find the file
             let remoteData = null;
+            // Ensure we have the latest file list if keepalive didn't catch it yet (though keepalive should)
             const file = this.storage.root.children.find(f => f.name === FILENAME);
 
             if (file) {
@@ -75,42 +78,34 @@ class MegaSync {
             );
 
             // 3. Upload merged data
-            // We upload if there are changes or if it's a new file
-            // Ideally we check if upload is needed, but for now we always upload to ensure consistency
-            // unless we want to save bandwidth. But let's be safe.
             const mergedJson = JSON.stringify(merged);
+            const encoder = new TextEncoder();
+            const buffer = encoder.encode(mergedJson);
 
             console.log('[MegaSync] Uploading merged data...');
 
             if (file) {
-                // Determine if we need to update
-                // Simple optimization: compare strings (ignoring order might be tricky, but exact match is easy)
-                // But for now, let's just upload.
-                // MegaJS doesn't support overwrite in place easily with `upload`,
-                // typically we upload a new version or delete and upload?
-                // `upload` usually uploads to a folder.
-                // If we upload with same name, MEGA usually handles versions.
-                // Let's delete old file and upload new one to keep it clean or just upload to root.
-                // `storage.upload` uploads to root by default? No, `storage.upload` is not a method on storage instance directly usually?
-                // Docs say: `storage.upload`
-
-                // We should use `storage.upload` which uploads to root if called on storage?
-                // Or `storage.root.upload`.
-                // Let's check docs again. `storage.upload` exists.
-
-                // If file exists, we can try to replace it?
-                // The docs say: "Once you logged into your account you can upload files by calling storage.upload()"
-                // But `storage` is the class instance.
-
-                // If we want to overwrite, usually we might end up with duplicates or versions depending on MEGA behavior.
-                // Safest is to find existing file, delete it (move to trash), then upload new one.
-                // Or maybe `storage.upload` handles it?
-                // Let's assume we upload to root.
-
-                await file.delete(true); // Permanent delete to avoid clutter
+                // Delete old file to avoid duplication/issues, robust upload creates new one.
+                await file.delete(true);
             }
 
-            await this.storage.upload(FILENAME, mergedJson).complete;
+            // Robust upload with retries and explicit size
+            await this.storage.upload({
+                name: FILENAME,
+                size: buffer.byteLength,
+                source: buffer,
+                allowUploadBuffering: true,
+                handleRetries: (tries, error, cb) => {
+                    if (error.code === -3 || tries < 8) { // -3 is EAGAIN
+                        const delay = Math.pow(2, tries) * 1000;
+                        console.log(`[MegaSync] Retrying upload (attempt ${tries + 1})...`);
+                        setTimeout(cb, delay);
+                    } else {
+                        cb(error);
+                    }
+                }
+            }).complete; // Await the .complete Promise as per tutorial
+
             console.log('[MegaSync] Sync complete.');
 
             return merged;

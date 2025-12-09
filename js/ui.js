@@ -107,36 +107,49 @@ class UI {
                 e.preventDefault();
                 let target = e.target;
 
-                // Check if Right Clicked on Event
-                const eventEl = target.closest('.fc-event');
-                if (eventEl) {
-                    // FullCalendar stores event ID in some internal way or we can find it
-                    // The safest way with FC v5/6 is to use the API, but here we are in raw DOM handler.
-                    // FC renders `fc-event-main` usually.
-                    // Let's try to get the ID from API by matching element? No, expensive.
-                    // However, we can use `clickedEvent` if we track it?
-                    // Better: FullCalendar usually exposes `eventDidMount`. 
-                    // But to keep it simple without refactoring render:
-                    // We can assume we can handle "event context menu" via `eventContent`? No.
-                    // Let's rely on standard logic:
-                    // We need to map DOM element to Event.
+                // 1. Check for Event
+                const contentWrapper = target.closest('.custom-event-content');
+                if (contentWrapper && contentWrapper.dataset.eventId) {
+                    const eventId = contentWrapper.dataset.eventId;
+                    const options = [
+                        { label: 'Copy Event', action: () => this.app.copyEvent(eventId) },
+                        {
+                            label: 'Delete Event', action: () => {
+                                if (confirm('Delete this event?')) {
+                                    this.app.eventService.delete(eventId);
+                                    this.app.refreshCalendarEvents();
+                                }
+                            }
+                        }
+                    ];
+                    createMenu(e.clientX, e.clientY, options);
+                    return;
+                }
 
-                    // Actually, FC has `eventClick` but not `eventContextMenu`.
-                    // We can listen globally and check intersection?
-                    // OR: Use `eventDidMount` to attach context listener? 
-                    // Since we are outside `initFullCalendar` here, let's use a workaround:
-                    // `fc-event` usually doesn't have ID on it in v5+.
-                    // But we can check `changeView`? 
-
-                    // Correct Approach: We modified `renderEventContent` in app.js.
-                    // We can attach the ID there? No, `eventContent` returns DOM nodes.
-                    // We can attach a dataset ID there?
-                    return; // Wait for app.js update to attach ID to DOM?
+                // 2. Check for Paste (Empty Slot)
+                if (this.app.clipboard) {
+                    // Try to guess resource from column
+                    const col = target.closest('.fc-timegrid-col');
+                    if (col || target.closest('.fc-timegrid-body')) {
+                        // We offer paste if there is something in clipboard
+                        const options = [
+                            {
+                                label: `Paste "${this.app.clipboard.name}"`, action: () => {
+                                    const now = new Date();
+                                    // We paste at current time for simplicity or just duplicate.
+                                    // Improvement: We could try to use coordinate to find time, but 
+                                    // for now we just duplicate to "now" which is reasonable for a context menu
+                                    // that doesn't natively support finding the slot easily without API.
+                                    // Actually, we can use `this.app.fullCalendar.getDate()`? 
+                                    // That returns start of view.
+                                    this.app.pasteEvent(now, null);
+                                }
+                            }
+                        ];
+                        createMenu(e.clientX, e.clientY, options);
+                    }
                 }
             });
-
-            // Wait, we can't easily get the event ID from just `e.target` in FC v5 unless we added it.
-            // Let's update `app.js` renderEventContent to add dataset-id!
         }
     }
 

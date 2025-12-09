@@ -65,7 +65,6 @@ class CalendarApp {
             dateClick: this.handleDateClick.bind(this),
             select: this.handleSelect.bind(this),
             eventDrop: this.handleEventModify.bind(this),
-            eventDrop: this.handleEventModify.bind(this),
             eventResize: this.handleEventModify.bind(this),
             views: {
                 hoursView: {
