@@ -35,7 +35,40 @@ class CalendarApp {
         }
 
         this.initFullCalendar();
+        this.setupKeyboardShortcuts();
         this.ui.setSyncStatus(false);
+    }
+
+    setupKeyboardShortcuts() {
+        document.addEventListener('keydown', (e) => {
+            // Ignore if input/textarea is focused
+            if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName) || document.activeElement.isContentEditable) {
+                return;
+            }
+
+            if (!this.fullCalendar) return;
+
+            switch (e.key) {
+                case 'ArrowLeft':
+                    this.fullCalendar.prev();
+                    break;
+                case 'ArrowRight':
+                    this.fullCalendar.next();
+                    break;
+                case 'ArrowUp':
+                    if (this.fullCalendar.view.type === 'hoursView') {
+                        e.preventDefault(); // Prevent page scroll
+                        this.shiftHoursView(-30);
+                    }
+                    break;
+                case 'ArrowDown':
+                    if (this.fullCalendar.view.type === 'hoursView') {
+                        e.preventDefault(); // Prevent page scroll
+                        this.shiftHoursView(30);
+                    }
+                    break;
+            }
+        });
     }
 
     initFullCalendar() {
