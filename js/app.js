@@ -312,7 +312,7 @@ class CalendarApp {
             const img = document.createElement('img');
             img.src = imageEntry.url;
             img.alt = info.event.title;
-            img.style.objectFit = 'contain'; // Maintain aspect ratio
+            // Let CSS handle size (height: 100%, aspect-ratio: 1)
             img.style.objectPosition = `${imageEntry.cropX}% ${imageEntry.cropY}%`;
             img.style.width = '100%';
             img.style.height = '100%';
@@ -355,6 +355,11 @@ class CalendarApp {
 
     // #region FullCalendar Event Handlers
     handleEventClick(info) {
+        if (this.ignoreNextClick) {
+            this.ignoreNextClick = false;
+            return;
+        }
+
         const event = this.eventService.find(info.event.id);
         if (event) {
             this.ui.populateEventForm(event);
@@ -363,6 +368,14 @@ class CalendarApp {
     }
 
     handleDateClick(info) {
+        if (this.isPastePending) {
+            this.isPastePending = false;
+            if (this.clipboard) {
+                this.preparePasteEvent(info.date);
+            }
+            return;
+        }
+
         if (this.fullCalendar.view.type.startsWith('dayGrid')) {
             this.fullCalendar.changeView('timeGridDay', info.date);
             const dayBtn = this.ui.elements.viewSelector.querySelector('button[data-view="timeGridDay"]');
@@ -376,25 +389,13 @@ class CalendarApp {
             const calendarName = info.resource ? info.resource.id :
                 (this.calendarService.getAll()[0]?.name || 'Main');
 
-            // Check if it is a single day selection in Month view (start + 1 day = end)
-            // In dayGridMonth, select info usually has start at 00:00 and end at 00:00 next day.
-            // If the difference is exactly 24 hours, it's a single day click.
-            // The user wants single taps to open Day View.
-            // FullCalendar's dateClick handles single taps on cells.
-            // FullCalendar's select handles drags.
-            // However, depending on config, select might fire on click too.
-            // We check duration.
+            // Check if it is a single day selection in Month view
             const diffTime = Math.abs(info.end - info.start);
             const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
             // If it's effectively 1 day (or less, though select usually snaps to days in month view)
             // AND we are in month view
             if (this.fullCalendar.view.type === 'dayGridMonth' && diffDays <= 1) {
-                 // Single day selection -> Ignore here, let dateClick handle it
-                 // OR manually switch view if dateClick isn't firing (but it should be)
-                 // Actually, if we return here, dateClick should have fired or will fire.
-                 // But wait, if 'selectable' is true, does 'dateClick' still fire? Yes.
-                 // But if we select, we might want to unselect.
                  this.fullCalendar.unselect();
                  return;
             }
@@ -449,17 +450,12 @@ class CalendarApp {
             end: newEnd.toISOString()
         };
 
-        // Remove recurrence from copy or keep? Usually copy logic keeps it, but maybe better to prompt?
-        // Let's keep it simple: exact clone.
-
         await this.eventService.save(newEvent);
         this.refreshCalendarEvents();
         this.ui.showToast('Event pasted', 'success');
     }
 
     changeView(view) {
-        // If switching to hoursView, fullCalendar treats it as custom view if defined in views
-        // We defined 'hoursView' in views config.
         const newView = view === 'timeGridDay' ? 'resourceTimeGridDay' : view;
         this.fullCalendar.changeView(newView);
     }
@@ -490,38 +486,97 @@ class CalendarApp {
         const formData = this.ui.getEventFormData();
         if (!formData) return;
 
-        // Save (create or update) event
-        const savedEvent = await this.eventService.save(formData);
+        const calendars = formData.calendars;
+        const originalId = formData.id;
 
-        // Handle Image
-        // If imageDataUrl is present, we save it (edited version) along with original if available.
-        // If ONLY imageFile is present and no imageDataUrl, it means direct upload no crop (not expected with activeCropper, but fallback).
+        // Loop logic to save event for each selected calendar
+        for (let i = 0; i < calendars.length; i++) {
+            const calName = calendars[i];
+            const eventData = { ...formData };
+            // Cleanup props that shouldn't be part of the event object saved to DB
+            delete eventData.calendars;
+            delete eventData.imageFile;
+            delete eventData.imageDataUrl;
+            delete eventData.originalImageDataUrl;
 
-        if (formData.imageDataUrl && savedEvent) {
-             const crop = { cropX: 50, cropY: 50 };
-             await this.imageService.saveEventImage(
-                 savedEvent.id,
-                 formData.imageDataUrl,
-                 crop,
-                 formData.originalImageDataUrl
-             );
-             this.refreshCalendarEvents();
-        } else if (formData.imageFile && savedEvent) {
-            // Fallback for direct file if somehow cropper failed or wasn't used?
-            // Or if user selected file but didn't crop?
-            // In our UI implementation, we auto-init cropper.
-            // But let's handle the "raw" read just in case.
-            const crop = { cropX: 50, cropY: 50 };
-            const reader = new FileReader();
-            reader.onload = async (e) => {
-                await this.imageService.saveEventImage(savedEvent.id, e.target.result, crop);
-                this.refreshCalendarEvents();
-            };
-            reader.readAsDataURL(formData.imageFile);
-        } else {
-            // If no new image, we still refresh to show the event
-            this.refreshCalendarEvents();
+            eventData.calendar = calName;
+
+            // ID Logic:
+            // Reuse original ID for the first calendar (effectively acting as the "move" target or primary update)
+            // Generate new IDs for others (copies)
+            let currentId = '';
+            if (originalId && i === 0) {
+                 currentId = originalId;
+            }
+            eventData.id = currentId;
+
+            const saved = await this.eventService.save(eventData);
+
+            // Image Saving Logic
+            if (saved) {
+                const crop = { cropX: 50, cropY: 50 };
+
+                if (formData.imageDataUrl) {
+                    // Save cropped version (and original)
+                    await this.imageService.saveEventImage(
+                         saved.id,
+                         formData.imageDataUrl,
+                         crop,
+                         formData.originalImageDataUrl
+                    );
+                } else if (formData.imageFile) {
+                    // Fallback to raw file (no cropping performed but file exists)
+                    // We need to read it.
+                    await new Promise((resolve) => {
+                        const r = new FileReader();
+                        r.onload = async (e) => {
+                            await this.imageService.saveEventImage(saved.id, e.target.result, crop);
+                            resolve();
+                        };
+                        r.readAsDataURL(formData.imageFile);
+                    });
+                } else if (originalId && saved.id !== originalId) {
+                     // Check if we should copy image from original?
+                     // If we are cloning an event, we might want to clone its image.
+                     // But imageService stores by ID `event:{id}`.
+                     // If we want to clone, we'd need to fetch old image and save as new ID.
+                     // Let's attempt to copy existing image if available.
+                     const originalImg = this.imageService.findEventImage({ id: originalId, calendar: null }); // Calendar doesn't matter for event:id search usually
+                     if (originalImg && originalImg.id === `event:${originalId}`) {
+                          // It's a specific event image, copy it.
+                          // But we need the data URL. It's in the object.
+                          // We should probably use `imageDataUrl` if it was loaded in form?
+                          // If form was populated, `activeCropper` might be null if user didn't touch image.
+                          // `formData.imageDataUrl` is only present if `activeCropper` exists.
+
+                          // If user didn't change image, `formData.imageFile` is empty.
+                          // So we should preserve existing image for the *primary* update (handled by ImageService automatically if we don't overwrite).
+                          // But for *copies* (new IDs), we need to explicitly copy the image entry.
+
+                          const newImageId = `event:${saved.id}`;
+                          // Check if we already handled it above (we didn't).
+
+                          // We can just save a new entry with same URL.
+                          // But we need to be careful not to duplicate too much data if URL is huge dataURI.
+                          // IndexedDB can handle it but better to reference? We don't support references yet.
+                          // We duplicate.
+
+                          // We can call saveEventImage with existing URL.
+                          // But `originalImg` might be the cropped one or original?
+                          // `findEventImage` returns displayed one.
+                          // Let's fetch original to be safe?
+                          // Simplify: Just copy the one we found.
+
+                          await this.imageService.saveEventImage(
+                              saved.id,
+                              originalImg.url,
+                              { cropX: originalImg.cropX, cropY: originalImg.cropY }
+                          );
+                     }
+                }
+            }
         }
+        this.refreshCalendarEvents();
     }
 
     async saveCalendarImage(calendarName, dataUrl, crop, originalDataUrl) {
@@ -584,11 +639,6 @@ class CalendarApp {
     }
 
     getTimeStripWindow() {
-        // If in hours view, return restricted window?
-        // Actually, the strip matches the VIEW.
-        // But getMinutesFromY in UI calculation relies on container height.
-        // If we want to align, we should respect the current view's min/max.
-        // But for now, let's keep it simple.
         return { startMinutes: 0, endMinutes: 24 * 60 };
     }
 
@@ -613,6 +663,24 @@ class CalendarApp {
             allDay: allDay,
             recurrence: { type: 'none' }
         };
+        this.ui.populateEventForm(eventData);
+        this.ui.toggleModal(this.ui.elements.eventOverlay, true);
+    }
+
+    preparePasteEvent(date) {
+        if (!this.clipboard) return;
+
+        const duration = new Date(this.clipboard.end) - new Date(this.clipboard.start);
+        const newStart = new Date(date);
+        const newEnd = new Date(newStart.getTime() + duration);
+
+        const eventData = {
+            ...this.clipboard,
+            id: '', // New ID
+            start: newStart.toISOString(),
+            end: newEnd.toISOString(),
+        };
+
         this.ui.populateEventForm(eventData);
         this.ui.toggleModal(this.ui.elements.eventOverlay, true);
     }
@@ -645,15 +713,6 @@ class CalendarApp {
         if (syncedData) {
             // Update local state with merged data
             if (syncedData.events) {
-                // Clear existing and add merged events
-                // Ideally we update specifically, but clearing and re-adding to DB ensures consistency
-                // But we must respect the service implementation.
-                // EventService uses an array and writes to DB individually on save.
-                // We should probably expose a "setAll" or iterate.
-
-                // Let's implement a batch update in services or just iterate
-                // For now, simple iteration.
-                // Ideally services should support bulk update.
                 this.eventService.events = syncedData.events;
                 await this.db.clear('events');
                 for (const ev of syncedData.events) {

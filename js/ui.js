@@ -34,7 +34,7 @@ class UI {
             eventForm: document.getElementById('event-form'),
             eventFormTitle: document.getElementById('event-form-title'),
             eventId: document.getElementById('event-id'),
-            eventCalendar: document.getElementById('event-calendar'),
+            eventCalendarList: document.getElementById('event-calendar-list'),
             eventName: document.getElementById('event-name'),
             eventDate: document.getElementById('event-date'),
             eventStartTime: document.getElementById('event-start-time'),
@@ -78,6 +78,7 @@ class UI {
         this.addEventListeners();
         this.setupEventImageHandling();
         this.setupContextMenu();
+        this.setupLongPressHandlers();
     }
 
     setupContextMenu() {
@@ -285,10 +286,6 @@ class UI {
                      dataUrl = await this.readFileAsDataURL(file);
                      originalDataUrl = null; // No crop
                 }
-
-                // If no file but cropper exists (e.g. editing existing image), originalDataUrl is needed?
-                // For manual upload, originalDataUrl is the file content.
-                // If we cropped, dataUrl is result, originalDataUrl is source.
 
                 // Legacy cropX/Y are ignored if we use cropper
                 await this.app.saveCalendarImage(calName, dataUrl, {}, originalDataUrl);
@@ -561,12 +558,26 @@ class UI {
             this.elements.calendarsList.appendChild(wrapper);
         });
 
-        this.elements.eventCalendar.innerHTML = '';
+        // Calendar selector in event form
+        this.elements.eventCalendarList.innerHTML = '';
         calendars.forEach(calendar => {
-            const opt = document.createElement('option');
-            opt.value = calendar.name;
-            opt.textContent = calendar.name;
-            this.elements.eventCalendar.appendChild(opt);
+            const wrapper = document.createElement('div');
+            wrapper.className = 'checkbox-item';
+            const id = `evt-cal-${calendar.name.replace(/\s+/g, '-')}`;
+
+            const input = document.createElement('input');
+            input.type = 'checkbox';
+            input.name = 'event-selected-calendars';
+            input.id = id;
+            input.value = calendar.name;
+
+            const label = document.createElement('label');
+            label.htmlFor = id;
+            label.textContent = calendar.name;
+
+            wrapper.appendChild(input);
+            wrapper.appendChild(label);
+            this.elements.eventCalendarList.appendChild(wrapper);
         });
 
         this.refreshImagePanelSelectors();
@@ -609,10 +620,18 @@ class UI {
         this.elements.eventId.value = eventData?.id || '';
         this.elements.eventName.value = eventData?.name || '';
 
+        // Clear all checks first
+        const checkboxes = this.elements.eventCalendarList.querySelectorAll('input[type="checkbox"]');
+        checkboxes.forEach(cb => cb.checked = false);
+
         if (eventData?.calendar) {
-            this.elements.eventCalendar.value = eventData.calendar;
-        } else if (this.elements.eventCalendar.options.length) {
-            this.elements.eventCalendar.value = this.elements.eventCalendar.options[0].value;
+            // Check the specific calendar
+            const cb = this.elements.eventCalendarList.querySelector(`input[value="${eventData.calendar}"]`);
+            if (cb) cb.checked = true;
+        } else if (checkboxes.length > 0) {
+            // Default to first if new? Or no selection?
+            // Usually defaulting to first available is good UX
+            checkboxes[0].checked = true;
         }
 
         const isAllDay = eventData?.allDay || false;
@@ -660,10 +679,7 @@ class UI {
                  this.elements.eventImagePreview.style.display = 'block';
                  this.originalImageSource = img.url; // Track original
 
-                 // Add an edit button or auto-init cropper?
-                 // The user said: "when uploading an image (and when editing an event) one can crop the image."
-                 // If an image exists, we should probably allow cropping it.
-                 // Let's initialize cropper on the existing image automatically if present.
+                 // Initialize cropper on the existing image automatically if present.
                  await this.initCropper(this.elements.eventImagePreview);
              }
         }
@@ -739,12 +755,18 @@ class UI {
 
     getEventFormData() {
         const id = this.elements.eventId.value || null;
-        const calendar = this.elements.eventCalendar.value;
+        // Gather selected calendars
+        const selectedCalendars = Array.from(this.elements.eventCalendarList.querySelectorAll('input:checked')).map(cb => cb.value);
         const name = this.elements.eventName.value.trim();
         const date = this.elements.eventDate.value;
         const isAllDay = this.elements.eventAllDay ? this.elements.eventAllDay.checked : false;
 
-        if (!calendar || !name || !date) {
+        // Conditional validation
+        if (selectedCalendars.length === 0) {
+            alert('Please select at least one calendar.');
+            return null;
+        }
+        if (!name || !date) {
             alert('Please fill all required fields.');
             return null;
         }
@@ -801,25 +823,12 @@ class UI {
             imageDataUrl = this.activeCropper.getCroppedCanvas().toDataURL();
             originalImageDataUrl = this.originalImageSource;
         } else if (imageFile) {
-            // Just file, no crop (shouldn't happen if we auto-init cropper, but safe fallback)
-            // But we can't sync get dataUrl here easily without await, so we rely on what we have.
-            // If getEventFormData is sync, we have a problem.
-            // But `saveEventFromForm` awaits `getEventFormData`.
-            // Wait, `getEventFormData` is currently synchronous in app.js usage?
-            // `saveEventFromForm` calls it. `saveEventFromForm` is async.
-            // So I can return a Promise? No, app.js expects object.
-            // I should make `getEventFormData` async or handle file reading before.
-            // BUT: `imageFile` is a File object. App.js handles it.
-            // I need to pass the cropped data url if available.
+            // Just file, no crop (safe fallback)
         }
-
-        // We will return properties, and let App.js / EventService handle them.
-        // We add `imageDataUrl` and `originalImageDataUrl` to result.
-        // `imageFile` is standard.
 
         return {
             id,
-            calendar,
+            calendars: selectedCalendars, // Array of calendar names
             name,
             imageFile,
             imageDataUrl, // Cropped version
@@ -829,6 +838,89 @@ class UI {
             allDay: isAllDay,
             recurrence
         };
+    }
+
+    setupLongPressHandlers() {
+        if (!this.elements.calendarEl) return;
+
+        let pressTimer = null;
+        let startX = 0;
+        let startY = 0;
+        const LONG_PRESS_DURATION = 1000;
+        const MOVE_THRESHOLD = 10;
+
+        const clearTimer = () => {
+            if (pressTimer) {
+                clearTimeout(pressTimer);
+                pressTimer = null;
+            }
+        };
+
+        const handleStart = (e) => {
+            // Only left mouse button or touch
+            if (e.type === 'mousedown' && e.button !== 0) return;
+
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            startX = clientX;
+            startY = clientY;
+            const target = e.target;
+
+            clearTimer();
+
+            pressTimer = setTimeout(() => {
+                pressTimer = null;
+                this.handleLongPress(target, clientX, clientY);
+            }, LONG_PRESS_DURATION);
+        };
+
+        const handleMove = (e) => {
+            if (!pressTimer) return;
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+            if (Math.abs(clientX - startX) > MOVE_THRESHOLD || Math.abs(clientY - startY) > MOVE_THRESHOLD) {
+                clearTimer();
+            }
+        };
+
+        const handleEnd = () => {
+            clearTimer();
+        };
+
+        const container = this.elements.calendarEl;
+        // Use capture phase to detect event before FullCalendar potential stopPropagation
+        container.addEventListener('mousedown', handleStart, true);
+        container.addEventListener('touchstart', handleStart, { passive: true, capture: true });
+
+        window.addEventListener('mousemove', handleMove, true);
+        window.addEventListener('touchmove', handleMove, true);
+
+        window.addEventListener('mouseup', handleEnd, true);
+        window.addEventListener('touchend', handleEnd, true);
+    }
+
+    handleLongPress(target, x, y) {
+        // Check if on event
+        const eventContent = target.closest('.custom-event-content');
+
+        if (eventContent && eventContent.dataset.eventId) {
+            // Copy Event
+            this.app.copyEvent(eventContent.dataset.eventId);
+            this.app.ignoreNextClick = true;
+            // Safety timeout
+            setTimeout(() => this.app.ignoreNextClick = false, 3000);
+            return;
+        }
+
+        // Check if on empty spot (Paste)
+        if (this.app.clipboard) {
+             this.app.isPastePending = true;
+             this.showToast('Release to paste', 'info');
+             setTimeout(() => this.app.isPastePending = false, 2000);
+        } else {
+             this.showToast('Clipboard empty', 'info');
+        }
     }
 
     getRecurrencePayload() {
@@ -915,11 +1007,8 @@ class UI {
         });
     }
 
-    // Backwards compatibility / simplified preview setup for where we don't use cropper?
-    // But we replaced it in `init`.
     setupImagePreview(fileInput, imgEl, cropXInput, cropYInput) {
         // This is now replaced by setupImageCropper for main inputs.
-        // We can keep it or redirect.
     }
 
     initCropper(imgEl) {

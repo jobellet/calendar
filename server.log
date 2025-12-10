@@ -1,13 +1,137 @@
-127.0.0.1 - - [10/Dec/2025 11:02:33] "GET / HTTP/1.1" 200 -
-127.0.0.1 - - [10/Dec/2025 11:02:34] "GET /js/db.js HTTP/1.1" 200 -
-127.0.0.1 - - [10/Dec/2025 11:02:34] "GET /css/header-img.css HTTP/1.1" 200 -
-127.0.0.1 - - [10/Dec/2025 11:02:34] "GET /css/features.css HTTP/1.1" 200 -
-127.0.0.1 - - [10/Dec/2025 11:02:34] "GET /css/close-btn.css HTTP/1.1" 200 -
-127.0.0.1 - - [10/Dec/2025 11:02:34] "GET /js/services/historyService.js HTTP/1.1" 200 -
-127.0.0.1 - - [10/Dec/2025 11:02:34] "GET /css/styles.css HTTP/1.1" 200 -
-127.0.0.1 - - [10/Dec/2025 11:02:34] "GET /js/services/eventService.js HTTP/1.1" 200 -
-127.0.0.1 - - [10/Dec/2025 11:02:34] "GET /js/services/imageService.js HTTP/1.1" 200 -
-127.0.0.1 - - [10/Dec/2025 11:02:34] "GET /js/services/calendarService.js HTTP/1.1" 200 -
-127.0.0.1 - - [10/Dec/2025 11:02:34] "GET /js/mega.js HTTP/1.1" 200 -
-127.0.0.1 - - [10/Dec/2025 11:02:34] "GET /js/app.js HTTP/1.1" 200 -
-127.0.0.1 - - [10/Dec/2025 11:02:34] "GET /js/ui.js HTTP/1.1" 200 -
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/home/jules/.pyenv/versions/3.12.12/lib/python3.12/http/server.py", line 1314, in <module>
+    test(
+  File "/home/jules/.pyenv/versions/3.12.12/lib/python3.12/http/server.py", line 1261, in test
+    with ServerClass(addr, HandlerClass) as httpd:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.12/lib/python3.12/socketserver.py", line 457, in __init__
+    self.server_bind()
+  File "/home/jules/.pyenv/versions/3.12.12/lib/python3.12/http/server.py", line 1308, in server_bind
+    return super().server_bind()
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.12/lib/python3.12/http/server.py", line 136, in server_bind
+    socketserver.TCPServer.server_bind(self)
+  File "/home/jules/.pyenv/versions/3.12.12/lib/python3.12/socketserver.py", line 478, in server_bind
+    self.socket.bind(self.server_address)
+OSError: [Errno 98] Address already in use
+127.0.0.1 - - [10/Dec/2025 12:22:20] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:22:20] "GET /css/styles.css HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:22:20] "GET /css/close-btn.css HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:22:20] "GET /js/db.js HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:22:20] "GET /css/features.css HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:22:20] "GET /css/header-img.css HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:22:20] "GET /js/services/historyService.js HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:22:20] "GET /js/services/imageService.js HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:22:20] "GET /js/mega.js HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:22:20] "GET /js/services/eventService.js HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:22:20] "GET /js/ui.js HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:22:20] "GET /js/services/calendarService.js HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:22:20] "GET /js/app.js HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:23:11] code 404, message File not found
+127.0.0.1 - - [10/Dec/2025 12:23:11] "GET /robots.txt HTTP/1.1" 404 -
+127.0.0.1 - - [10/Dec/2025 12:23:21] "GET /css/styles.css HTTP/1.0" 200 -
+127.0.0.1 - - [10/Dec/2025 12:23:28] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:23:28] "GET /css/styles.css HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:23:28] "GET /css/close-btn.css HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:23:28] "GET /css/features.css HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:23:28] "GET /js/db.js HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:23:28] "GET /css/header-img.css HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:23:28] "GET /js/services/historyService.js HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:23:28] "GET /js/services/eventService.js HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:23:28] "GET /js/services/imageService.js HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:23:28] "GET /js/services/calendarService.js HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:23:28] "GET /js/ui.js HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:23:28] "GET /js/mega.js HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:23:28] "GET /js/app.js HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:24:19] code 404, message File not found
+127.0.0.1 - - [10/Dec/2025 12:24:19] "GET /robots.txt HTTP/1.1" 404 -
+127.0.0.1 - - [10/Dec/2025 12:24:27] "GET /index.html HTTP/1.0" 200 -
+127.0.0.1 - - [10/Dec/2025 12:24:32] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:24:32] "GET /css/styles.css HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:24:32] "GET /css/header-img.css HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:24:32] "GET /js/db.js HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:24:32] "GET /css/close-btn.css HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:24:32] "GET /js/services/historyService.js HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:24:32] "GET /css/features.css HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:24:32] "GET /js/services/imageService.js HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:24:32] "GET /js/services/eventService.js HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:24:32] "GET /js/services/calendarService.js HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:24:32] "GET /js/ui.js HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:24:32] "GET /js/mega.js HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:24:32] "GET /js/app.js HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:25:23] code 404, message File not found
+127.0.0.1 - - [10/Dec/2025 12:25:23] "GET /robots.txt HTTP/1.1" 404 -
+127.0.0.1 - - [10/Dec/2025 12:25:34] "GET /css/styles.css HTTP/1.0" 200 -
+127.0.0.1 - - [10/Dec/2025 12:25:42] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:25:42] "GET /css/styles.css HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:25:42] "GET /css/header-img.css HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:25:42] "GET /css/close-btn.css HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:25:42] "GET /js/db.js HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:25:42] "GET /css/features.css HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:25:42] "GET /js/services/historyService.js HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:25:42] "GET /js/ui.js HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:25:42] "GET /js/services/calendarService.js HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:25:42] "GET /js/services/eventService.js HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:25:42] "GET /js/app.js HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:25:42] "GET /js/mega.js HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:25:42] "GET /js/services/imageService.js HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:26:32] code 404, message File not found
+127.0.0.1 - - [10/Dec/2025 12:26:32] "GET /robots.txt HTTP/1.1" 404 -
+127.0.0.1 - - [10/Dec/2025 12:26:44] "GET /index.html HTTP/1.0" 200 -
+127.0.0.1 - - [10/Dec/2025 12:26:50] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:26:50] "GET /css/styles.css HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:26:50] "GET /css/header-img.css HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:26:50] "GET /css/close-btn.css HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:26:50] "GET /js/services/historyService.js HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:26:50] "GET /css/features.css HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:26:50] "GET /js/services/eventService.js HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:26:50] "GET /js/db.js HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:26:50] "GET /js/services/imageService.js HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:26:50] "GET /js/app.js HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:26:50] "GET /js/ui.js HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:26:50] "GET /js/mega.js HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:26:50] "GET /js/services/calendarService.js HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:27:40] code 404, message File not found
+127.0.0.1 - - [10/Dec/2025 12:27:40] "GET /robots.txt HTTP/1.1" 404 -
+127.0.0.1 - - [10/Dec/2025 12:27:50] "GET /css/styles.css HTTP/1.0" 200 -
+127.0.0.1 - - [10/Dec/2025 12:27:59] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:27:59] "GET /css/styles.css HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:27:59] "GET /css/header-img.css HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:27:59] "GET /css/close-btn.css HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:27:59] "GET /js/services/historyService.js HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:27:59] "GET /js/db.js HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:27:59] "GET /css/features.css HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:27:59] "GET /js/services/eventService.js HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:27:59] "GET /js/services/imageService.js HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:27:59] "GET /js/services/calendarService.js HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:27:59] "GET /js/mega.js HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:27:59] "GET /js/ui.js HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:27:59] "GET /js/app.js HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:28:58] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:28:58] "GET /css/styles.css HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:28:58] "GET /css/close-btn.css HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:28:58] "GET /js/services/historyService.js HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:28:58] "GET /css/header-img.css HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:28:58] "GET /css/features.css HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:28:58] "GET /js/db.js HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:28:58] "GET /js/services/eventService.js HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:28:58] "GET /js/services/imageService.js HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:28:58] "GET /js/ui.js HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:28:58] "GET /js/services/calendarService.js HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:28:58] "GET /js/app.js HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:28:58] "GET /js/mega.js HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:29:23] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:29:23] "GET /css/styles.css HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:29:23] "GET /css/header-img.css HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:29:23] "GET /css/features.css HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:29:23] "GET /js/services/eventService.js HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:29:23] "GET /css/close-btn.css HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:29:23] "GET /js/services/imageService.js HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:29:23] "GET /js/services/historyService.js HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:29:23] "GET /js/db.js HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:29:23] "GET /js/services/calendarService.js HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:29:23] "GET /js/mega.js HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:29:23] "GET /js/app.js HTTP/1.1" 200 -
+127.0.0.1 - - [10/Dec/2025 12:29:23] "GET /js/ui.js HTTP/1.1" 200 -
