@@ -833,3 +833,32 @@ button[type="button"].cancel-btn:hover {
         grid-template-columns: 1fr; /* Stack on small screens */
     }
 }
+/* Checkbox List Styles */
+.checkbox-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 150px;
+    overflow-y: auto;
+    border: 1px solid #e0e0e0;
+    padding: 8px;
+    border-radius: 10px;
+    background: #f9f9f9;
+}
+
+.checkbox-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    color: var(--text-main);
+    cursor: pointer;
+}
+
+.checkbox-item input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    margin: 0;
+    cursor: pointer;
+    accent-color: var(--primary-color);
+}

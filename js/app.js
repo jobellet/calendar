@@ -355,6 +355,11 @@ class CalendarApp {
 
     // #region FullCalendar Event Handlers
     handleEventClick(info) {
+        if (this.ignoreNextClick) {
+            this.ignoreNextClick = false;
+            return;
+        }
+
         const event = this.eventService.find(info.event.id);
         if (event) {
             this.ui.populateEventForm(event);
@@ -363,6 +368,17 @@ class CalendarApp {
     }
 
     handleDateClick(info) {
+        if (this.isPastePending) {
+            this.isPastePending = false;
+            if (this.clipboard) {
+                // If in dayGrid view, info.date is 00:00. We might want to keep that if pasting all day?
+                // Or if we copied a time event, we paste it at 00:00?
+                // The `preparePasteEvent` logic sets time relative to start.
+                this.preparePasteEvent(info.date);
+            }
+            return;
+        }
+
         if (this.fullCalendar.view.type.startsWith('dayGrid')) {
             this.fullCalendar.changeView('timeGridDay', info.date);
             const dayBtn = this.ui.elements.viewSelector.querySelector('button[data-view="timeGridDay"]');
@@ -490,22 +506,98 @@ class CalendarApp {
         const formData = this.ui.getEventFormData();
         if (!formData) return;
 
-        // Save (create or update) event
-        const savedEvent = await this.eventService.save(formData);
+        // Create a copy for each selected calendar
+        // If we are editing (id exists), we update the main event (belonging to one calendar)
+        // and optionally create copies in others.
+        // BUT, since we changed the UI to checkbox, formData.calendars is an array.
 
-        // Handle Image
-        if (formData.imageFile && savedEvent) {
-            const crop = { cropX: 50, cropY: 50 }; // Default center
-            const reader = new FileReader();
-            reader.onload = async (e) => {
-                await this.imageService.saveEventImage(savedEvent.id, e.target.result, crop);
-                this.refreshCalendarEvents();
-            };
-            reader.readAsDataURL(formData.imageFile);
-        } else {
-            // If no new image, we still refresh to show the event
-            this.refreshCalendarEvents();
+        // If it's a new event (no ID), we create one for each calendar in the list.
+        // If it's an existing event, we update it. If user selected other calendars too, we create copies.
+
+        const calendars = formData.calendars; // Array
+        const originalId = formData.id;
+        let primarySavedEvent = null;
+
+        // We process the first calendar as the "primary" update if editing, or just the first creation
+        // Actually, if we are editing, we know the event's original calendar.
+        // But the form data only gives us the *selected* calendars now.
+        // If the original calendar is not in the list, it effectively moves? Or we just iterate.
+
+        // Let's iterate all selected calendars.
+        for (let i = 0; i < calendars.length; i++) {
+            const calName = calendars[i];
+
+            // Prepare event data for this calendar
+            const eventData = { ...formData };
+            delete eventData.calendars; // remove the array
+            delete eventData.imageFile; // handle separately
+            eventData.calendar = calName;
+
+            // Logic for ID:
+            // If this is the *first* iteration AND we have an original ID, we treat it as the update.
+            // Subsequent iterations (or if no original ID) are new events (copies).
+            // WAIT: If I am editing an event in "Work", and I select "Work" and "Home".
+            // 1. Update "Work" event (preserve ID).
+            // 2. Create new "Home" event (new ID).
+
+            // If I am editing an event in "Work", and I UNCHECK "Work" and select "Home".
+            // 1. Create "Home".
+            // What happens to "Work"? It remains touched? Or should be deleted?
+            // The prompt implies "add the possibility to select more that one calendar ... copies".
+            // It doesn't explicitly say "Move" or "Delete from original".
+            // So I will assume we are CREATING copies or Updating the current one.
+
+            // To be safe and simple:
+            // If `originalId` is set, we need to know which calendar it belonged to, to decide if we update or copy.
+            // But we don't easily have the original event here without fetching.
+            // Let's fetch it if id exists.
+
+            let currentId = '';
+            if (originalId && i === 0) {
+                 // We try to reuse the ID for the first one, assuming the user likely kept the original calendar or we just pick one to be the "same" event.
+                 // Actually, if we want to support "update current, copy to others", we should probably fetch the original event first to see its calendar.
+                 // But `formData.calendars` contains the desired target calendars.
+
+                 // Let's just say: The first calendar in the list gets the original ID (if it was an edit).
+                 // The rest get new IDs.
+                 // This effectively "moves" it to the first selected calendar if the original calendar was unchecked,
+                 // or updates it if it was checked.
+                 // And creates copies for the rest.
+                 currentId = originalId;
+            }
+
+            eventData.id = currentId;
+
+            const saved = await this.eventService.save(eventData);
+            if (i === 0) primarySavedEvent = saved;
+
+            // Handle Image for EACH copy if provided
+            if (formData.imageFile && saved) {
+                const crop = { cropX: 50, cropY: 50 };
+                const reader = new FileReader();
+                // We need to read it once, but FileReader is async.
+                // We can read it once outside loop.
+                // Let's wrap in a promise helper
+                await new Promise((resolve) => {
+                    const r = new FileReader();
+                    r.onload = async (e) => {
+                        await this.imageService.saveEventImage(saved.id, e.target.result, crop);
+                        resolve();
+                    };
+                    r.readAsDataURL(formData.imageFile);
+                });
+            } else if (originalId && saved && saved.id !== originalId) {
+                // If we are copying (new ID) from an existing event (originalId), check if original had an image and copy it?
+                // The service might not automatically copy image data since it's separate.
+                // But the user didn't explicitly ask for deep copy of images on creation.
+                // If they upload a new file, we save it to all.
+                // If they don't upload a new file, we leave it.
+                // If we want to copy existing image to new copies, we'd need to fetch existing image.
+                // Let's skip that complexity for now unless requested.
+            }
         }
+
+        this.refreshCalendarEvents();
     }
 
     async saveCalendarImage(calendarName, dataUrl, crop) {
@@ -597,6 +689,28 @@ class CalendarApp {
             allDay: allDay,
             recurrence: { type: 'none' }
         };
+        this.ui.populateEventForm(eventData);
+        this.ui.toggleModal(this.ui.elements.eventOverlay, true);
+    }
+
+    preparePasteEvent(date) {
+        if (!this.clipboard) return;
+
+        // Open modal pre-filled with clipboard data but shifted time
+        const duration = new Date(this.clipboard.end) - new Date(this.clipboard.start);
+        const newStart = new Date(date);
+        const newEnd = new Date(newStart.getTime() + duration);
+
+        const eventData = {
+            ...this.clipboard,
+            id: '', // New ID
+            start: newStart.toISOString(),
+            end: newEnd.toISOString(),
+        };
+
+        // We set the calendar to the clipboard's calendar (or default logic in populate)
+        // populateEventForm handles `calendar` property.
+
         this.ui.populateEventForm(eventData);
         this.ui.toggleModal(this.ui.elements.eventOverlay, true);
     }
