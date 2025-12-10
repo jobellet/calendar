@@ -312,17 +312,15 @@ class CalendarApp {
             const img = document.createElement('img');
             img.src = imageEntry.url;
             img.alt = info.event.title;
-            img.style.objectFit = 'contain'; // Maintain aspect ratio
+            // Let CSS handle size (height: 100%, aspect-ratio: 1)
             img.style.objectPosition = `${imageEntry.cropX}% ${imageEntry.cropY}%`;
-            img.style.width = '100%';
-            img.style.height = '100%';
             wrapper.appendChild(img);
-        } else {
-            const titleEl = document.createElement('div');
-            titleEl.className = 'event-title';
-            titleEl.textContent = info.event.title;
-            wrapper.appendChild(titleEl);
         }
+
+        const titleEl = document.createElement('div');
+        titleEl.className = 'event-title';
+        titleEl.textContent = info.event.title;
+        wrapper.appendChild(titleEl);
 
         return { domNodes: [wrapper] };
     }

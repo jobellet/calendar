@@ -531,6 +531,8 @@ button[type="button"].cancel-btn:hover {
 }
 
 .custom-event-content .event-title {
+    flex: 1;
+    min-width: 0;
     font-weight: 600;
     font-size: 13px;
     white-space: nowrap;
