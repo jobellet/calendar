@@ -69,6 +69,8 @@ class UI {
             closeSidebarBtn: document.getElementById('close-sidebar-btn'),
             fabAddEvent: document.querySelector('.fab-add-event'),
         };
+        this.activeCropper = null;
+        this.originalImageSource = null; // Store the original source when editing
     }
 
     init(app) {
@@ -146,12 +148,6 @@ class UI {
                             {
                                 label: `Paste "${this.app.clipboard.name}"`, action: () => {
                                     const now = new Date();
-                                    // We paste at current time for simplicity or just duplicate.
-                                    // Improvement: We could try to use coordinate to find time, but 
-                                    // for now we just duplicate to "now" which is reasonable for a context menu
-                                    // that doesn't natively support finding the slot easily without API.
-                                    // Actually, we can use `this.app.fullCalendar.getDate()`? 
-                                    // That returns start of view.
                                     this.app.pasteEvent(now, null);
                                 }
                             }
@@ -257,28 +253,49 @@ class UI {
         if (this.elements.closeImagePanelBtn) {
             this.elements.closeImagePanelBtn.addEventListener('click', () => {
                 this.toggleModal(this.elements.imageManagementPanel, false);
+                this.destroyCropper(); // Clean up on close
             });
         }
 
         // Calendar image save
-        // Calendar image save
         this.elements.imgCalendarSaveBtn.addEventListener('click', async () => {
             const calName = this.elements.imgCalendarSelect.value;
+            // Get original file if present
             const file = this.elements.imgCalendarFile.files[0];
+
             if (!calName) {
                 this.showToast('Please select a calendar.', 'error');
                 return;
             }
-            if (!file) {
-                this.showToast('Please select an image file.', 'error');
-                return;
+
+            // We might have a file selected OR we might be editing an existing one (not implemented for cal yet).
+            // But if we have an active cropper, we use it.
+            if (!this.activeCropper && !file) {
+                 this.showToast('Please select an image file.', 'error');
+                 return;
             }
+
             try {
-                const dataUrl = await this.readFileAsDataURL(file);
-                const cropX = Math.min(100, Math.max(0, parseInt(this.elements.imgCalendarCropX?.value, 10) || 50));
-                const cropY = Math.min(100, Math.max(0, parseInt(this.elements.imgCalendarCropY?.value, 10) || 50));
-                await this.app.saveCalendarImage(calName, dataUrl, { cropX, cropY });
+                let dataUrl, originalDataUrl;
+
+                if (this.activeCropper) {
+                     dataUrl = this.activeCropper.getCroppedCanvas().toDataURL();
+                     originalDataUrl = this.originalImageSource;
+                } else if (file) {
+                     dataUrl = await this.readFileAsDataURL(file);
+                     originalDataUrl = null; // No crop
+                }
+
+                // If no file but cropper exists (e.g. editing existing image), originalDataUrl is needed?
+                // For manual upload, originalDataUrl is the file content.
+                // If we cropped, dataUrl is result, originalDataUrl is source.
+
+                // Legacy cropX/Y are ignored if we use cropper
+                await this.app.saveCalendarImage(calName, dataUrl, {}, originalDataUrl);
                 this.showToast('Calendar image saved!', 'success');
+                this.destroyCropper();
+                this.elements.imgCalendarFile.value = ''; // Reset input
+                this.elements.imgCalendarPreview.style.display = 'none';
             } catch (error) {
                 console.error('Failed to save calendar image:', error);
                 this.showToast('Failed to save image.', 'error');
@@ -295,46 +312,54 @@ class UI {
                 this.showToast('Please enter a category name.', 'error');
                 return;
             }
-            if (!file) {
+             if (!this.activeCropper && !file) {
                 this.showToast('Please select an image file.', 'error');
                 return;
             }
 
             try {
-                const dataUrl = await this.readFileAsDataURL(file);
-                const cropX = Math.min(100, Math.max(0, parseInt(this.elements.imgCategoryCropX?.value, 10) || 50));
-                const cropY = Math.min(100, Math.max(0, parseInt(this.elements.imgCategoryCropY?.value, 10) || 50));
-                await this.app.saveCategoryImage(scope, category, dataUrl, { cropX, cropY });
+                 let dataUrl, originalDataUrl;
+
+                if (this.activeCropper) {
+                     dataUrl = this.activeCropper.getCroppedCanvas().toDataURL();
+                     originalDataUrl = this.originalImageSource;
+                } else if (file) {
+                     dataUrl = await this.readFileAsDataURL(file);
+                     originalDataUrl = null;
+                }
+
+                await this.app.saveCategoryImage(scope, category, dataUrl, {}, originalDataUrl);
                 this.showToast('Category image saved!', 'success');
+                this.destroyCropper();
+                this.elements.imgCategoryFile.value = '';
+                this.elements.imgCategoryPreview.style.display = 'none';
             } catch (error) {
                 console.error('Failed to save category image:', error);
                 this.showToast('Failed to save image.', 'error');
             }
         });
 
-        // Initialize Previews
-        this.setupImagePreview(
+        // Initialize Previews with Cropper
+        this.setupImageCropper(
             this.elements.imgCalendarFile,
             this.elements.imgCalendarPreview,
-            this.elements.imgCalendarCropX,
-            this.elements.imgCalendarCropY
+            [this.elements.imgCalendarCropX, this.elements.imgCalendarCropY]
         );
-        this.setupImagePreview(
+        this.setupImageCropper(
             this.elements.imgCategoryFile,
             this.elements.imgCategoryPreview,
-            this.elements.imgCategoryCropX,
-            this.elements.imgCategoryCropY
+            [this.elements.imgCategoryCropX, this.elements.imgCategoryCropY]
         );
 
-        // Right sidebar hover / click -> choose time in the same zoom window as day view
+        // Right sidebar hover logic...
         if (this.elements.timeHoverContainer) {
+             // ... existing logic ...
             const container = this.elements.timeHoverContainer;
             const indicator = this.elements.timeHoverIndicator;
             let isDragging = false;
             let startY = 0;
             let startMinutes = 0;
 
-            // Helper to get minutes from Y position
             const getMinutesFromY = (y) => {
                 const rect = container.getBoundingClientRect();
                 const safeY = Math.min(Math.max(y - rect.top, 0), rect.height);
@@ -348,14 +373,12 @@ class UI {
                 return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
             };
 
-            // Drag Start
             const handleDragStart = (e) => {
                 const clientY = e.touches ? e.touches[0].clientY : e.clientY;
                 isDragging = true;
                 startY = clientY;
                 startMinutes = getMinutesFromY(clientY);
 
-                // Create/Update visual selection div
                 let selection = document.getElementById('time-strip-selection');
                 if (!selection) {
                     selection = document.createElement('div');
@@ -376,19 +399,15 @@ class UI {
 
             container.addEventListener('mousedown', handleDragStart);
             container.addEventListener('touchstart', (e) => {
-                // Prevent scrolling when interacting with the time strip
                 if (e.cancelable) e.preventDefault();
                 handleDragStart(e);
             }, { passive: false });
 
-            // Dragging (Selection Update)
             const handleDragMove = (e) => {
                 const clientY = e.touches ? e.touches[0].clientY : e.clientY;
                 const target = e.touches ? document.elementFromPoint(e.touches[0].clientX, clientY) : e.target;
 
                 if (!isDragging) {
-                    // Hover effect only
-                    // On touch, hover is less relevant, but we keep logic consistent
                     if (!e.touches && container.contains(target)) {
                         const mins = getMinutesFromY(clientY);
                         indicator.textContent = formatTime(mins);
@@ -402,11 +421,10 @@ class UI {
                     return;
                 }
 
-                // Update selection visual
                 const currentMinutes = getMinutesFromY(clientY);
                 const rect = container.getBoundingClientRect();
                 const currentY = Math.min(Math.max(clientY - rect.top, 0), rect.height);
-                const startRelY = (startMinutes / (24 * 60)) * rect.height; // Recalculate robust start Y
+                const startRelY = (startMinutes / (24 * 60)) * rect.height;
 
                 const top = Math.min(startRelY, currentY);
                 const height = Math.abs(currentY - startRelY);
@@ -424,49 +442,40 @@ class UI {
 
             window.addEventListener('mousemove', handleDragMove);
             window.addEventListener('touchmove', (e) => {
-                // Prevent scrolling while dragging
                  if (isDragging && e.cancelable) {
                     e.preventDefault();
                 }
                 handleDragMove(e);
             }, { passive: false });
 
-            // Drag End (Create Event)
             const handleDragEnd = (e) => {
                 if (!isDragging) return;
                 isDragging = false;
 
-                // For touchend, changedTouches usually has the last position
                 const clientY = e.changedTouches ? e.changedTouches[0].clientY : e.clientY;
                 const endMinutes = getMinutesFromY(clientY);
-
-                // Determine range
                 const minMins = Math.min(startMinutes, endMinutes);
                 const maxMins = Math.max(startMinutes, endMinutes);
 
-                // If it's just a click (diff < 5 mins), treat as 30m slot
                 const diff = maxMins - minMins;
                 let finalStart = minMins;
                 let finalEnd = maxMins;
 
                 if (diff < 15) {
-                    finalEnd = finalStart + 30; // Default 30 min
+                    finalEnd = finalStart + 30;
                 }
 
-                // Hide selection visual
                 const selection = document.getElementById('time-strip-selection');
                 if (selection) selection.style.display = 'none';
-                indicator.style.display = 'none'; // Also hide indicator
+                indicator.style.display = 'none';
 
-                // Convert to Dates
-                const baseDate = new Date(); // Or current viewed date
+                const baseDate = new Date();
                 const start = new Date(baseDate);
                 start.setHours(Math.floor(finalStart / 60), finalStart % 60, 0, 0);
 
                 const end = new Date(baseDate);
                 end.setHours(Math.floor(finalEnd / 60), finalEnd % 60, 0, 0);
 
-                // Open modal
                 this.app.openEventCreationFromRange(start, end);
             };
 
@@ -499,7 +508,6 @@ class UI {
         if (this.elements.fabAddEvent) {
             this.elements.fabAddEvent.addEventListener('click', () => {
                 const now = new Date();
-                // Default to next rounded half-hour
                 let minutes = Math.ceil(now.getMinutes() / 30) * 30;
                 let hours = now.getHours();
                 if (minutes === 60) {
@@ -513,12 +521,12 @@ class UI {
         // Hours View Controls
         if (this.elements.hoursUpBtn) {
             this.elements.hoursUpBtn.addEventListener('click', () => {
-                this.app.shiftHoursView(-30); // Shift earlier by 30 mins
+                this.app.shiftHoursView(-30);
             });
         }
         if (this.elements.hoursDownBtn) {
             this.elements.hoursDownBtn.addEventListener('click', () => {
-                this.app.shiftHoursView(30); // Shift later by 30 mins
+                this.app.shiftHoursView(30);
             });
         }
         if (this.elements.hoursResetBtn) {
@@ -533,7 +541,6 @@ class UI {
         buttons.forEach(btn => btn.classList.remove('active'));
         activeBtn.classList.add('active');
 
-        // Toggle visibility of hours controls
         if (activeBtn.dataset.view === 'hoursView') {
             this.elements.hoursViewControls.style.display = 'flex';
         } else {
@@ -542,7 +549,6 @@ class UI {
     }
 
     renderCalendars(calendars, visibleCalendars) {
-        // Calendars in left list
         this.elements.calendarsList.innerHTML = '';
         calendars.forEach(calendar => {
             const wrapper = document.createElement('div');
@@ -555,7 +561,6 @@ class UI {
             this.elements.calendarsList.appendChild(wrapper);
         });
 
-        // Calendar selector in event form
         this.elements.eventCalendar.innerHTML = '';
         calendars.forEach(calendar => {
             const opt = document.createElement('option');
@@ -564,10 +569,8 @@ class UI {
             this.elements.eventCalendar.appendChild(opt);
         });
 
-        // Calendar selector in image panel
         this.refreshImagePanelSelectors();
 
-        // Attach visibility listeners
         this.elements.calendarsList.querySelectorAll('input[type="checkbox"]').forEach(cb => {
             cb.addEventListener('change', () => {
                 const calendarName = cb.dataset.calendar;
@@ -579,7 +582,6 @@ class UI {
 
     refreshImagePanelSelectors() {
         const calendars = this.app ? this.app.calendarService.getAll() : [];
-        // Calendar image select
         this.elements.imgCalendarSelect.innerHTML = '';
         calendars.forEach(cal => {
             const opt = document.createElement('option');
@@ -588,7 +590,6 @@ class UI {
             this.elements.imgCalendarSelect.appendChild(opt);
         });
 
-        // Category scope select
         this.elements.imgCategoryScope.innerHTML = '';
         const allOpt = document.createElement('option');
         allOpt.value = 'all';
@@ -602,7 +603,7 @@ class UI {
         });
     }
 
-    populateEventForm(eventData) {
+    async populateEventForm(eventData) {
         this.elements.eventFormTitle.textContent = eventData && eventData.id ? 'Edit event' : 'Create event';
 
         this.elements.eventId.value = eventData?.id || '';
@@ -620,9 +621,6 @@ class UI {
         }
 
         if (eventData?.start) {
-            // If ISO string is just YYYY-MM-DD or we treat it as UTC, we need to be careful.
-            // But usually we store ISO with time.
-            // For allDay, FullCalendar might give us YYYY-MM-DD or YYYY-MM-DDT00:00:00.
             const startDate = new Date(eventData.start);
             this.elements.eventDate.value = startDate.toISOString().slice(0, 10);
             this.elements.eventStartTime.value = startDate.toTimeString().slice(0, 5);
@@ -633,21 +631,8 @@ class UI {
 
         if (eventData?.end) {
             const endDate = new Date(eventData.end);
-            // If it's allDay, the end date in FullCalendar is exclusive.
-            // e.g. Start: 2023-01-01, End: 2023-01-02 means just 1 day (Jan 1).
-            // But users expect "End Date" to be inclusive in a form usually, or maybe exclusive?
-            // Let's stick to standard input behavior: date input.
-            // If I pick Jan 1 to Jan 1, it's 1 day.
-            // If I pick Jan 1 to Jan 2, it's 2 days.
-            // FullCalendar exclusive end means Jan 1 to Jan 2 is 1 day.
-            // So if allDay, we might want to subtract 1 day for display if it's multi-day?
-            // Let's see how FullCalendar handles it.
-            // If I select 2 days (Jan 1, Jan 2), FC gives start=Jan 1, end=Jan 3.
-            // So display should probably be Jan 2 inclusive.
-
             let displayEndDate = endDate;
             if (isAllDay) {
-                 // Subtract 1 millisecond to get the previous day (inclusive end)
                  displayEndDate = new Date(endDate.getTime() - 1);
             }
 
@@ -660,6 +645,28 @@ class UI {
 
         this.setRecurrenceValues(eventData?.recurrence);
         this.toggleAllDayFields();
+
+        // Handle Event Image
+        this.destroyCropper(); // Reset previous cropper
+        this.elements.eventImageFile.value = ''; // Reset file input
+        this.elements.eventImagePreview.style.display = 'none';
+
+        if (eventData?.id) {
+             // Try to find existing image
+             const img = this.app.imageService.getOriginalImage(`event:${eventData.id}`);
+             if (img) {
+                 // Load original into preview/cropper
+                 this.elements.eventImagePreview.src = img.url;
+                 this.elements.eventImagePreview.style.display = 'block';
+                 this.originalImageSource = img.url; // Track original
+
+                 // Add an edit button or auto-init cropper?
+                 // The user said: "when uploading an image (and when editing an event) one can crop the image."
+                 // If an image exists, we should probably allow cropping it.
+                 // Let's initialize cropper on the existing image automatically if present.
+                 await this.initCropper(this.elements.eventImagePreview);
+             }
+        }
     }
 
     clearEventForm() {
@@ -710,7 +717,6 @@ class UI {
         if (!this.elements.eventAllDay) return;
         const isAllDay = this.elements.eventAllDay.checked;
 
-        // Toggle visibility/requirements of Time fields
         const timeDisplay = isAllDay ? 'none' : 'block';
         if (this.elements.eventStartTime) {
             this.elements.eventStartTime.style.display = timeDisplay;
@@ -722,15 +728,6 @@ class UI {
         }
         if (this.elements.eventStartTimeLabel) this.elements.eventStartTimeLabel.style.display = timeDisplay;
         if (this.elements.eventEndTimeLabel) this.elements.eventEndTimeLabel.style.display = timeDisplay;
-
-        // Toggle visibility of End Date (needed for all-day ranges)
-        // If it's not all day, we assume single day event usually, OR we could allow multi-day with time?
-        // Current implementation assumed single day for time-based events (only one date input).
-        // Let's enable End Date for All Day events.
-        // For non-all-day, we hide it to keep it simple as per original design,
-        // unless we want to support multi-day time events (e.g. 10pm to 2am next day).
-        // The original design had one date input.
-        // Let's show End Date ONLY for All Day for now to satisfy the "range" requirement.
 
         const endDateDisplay = isAllDay ? 'block' : 'none';
         if (this.elements.eventEndDate) {
@@ -747,7 +744,6 @@ class UI {
         const date = this.elements.eventDate.value;
         const isAllDay = this.elements.eventAllDay ? this.elements.eventAllDay.checked : false;
 
-        // Conditional validation
         if (!calendar || !name || !date) {
             alert('Please fill all required fields.');
             return null;
@@ -761,29 +757,7 @@ class UI {
                  alert('Please select an end date for all-day event.');
                  return null;
             }
-            // All Day: Start is 00:00, End is 00:00 of NEXT day (exclusive)
-            // But if user picks Jan 1 to Jan 1, they mean "Just Jan 1".
-            // If they pick Jan 1 to Jan 2, they mean "Jan 1 and Jan 2".
-            // So we take the end date input, add 1 day, and set to 00:00.
-            // Wait, usually "End Date: Jan 1" means inclusive.
-            // So Jan 1 to Jan 1 = 1 day.
-            // We need to construct the Date object carefully.
-
-            const s = new Date(date);
-            // Ensure local time 00:00
-            s.setHours(0,0,0,0);
-            startISO = s.toISOString(); // This might be UTC shifted if we are not careful.
-            // FullCalendar expects ISO8601.
-            // If we use simple ISO strings, it might be interpreted as UTC.
-            // But our app seems to rely on local time constructed via new Date("YYYY-MM-DD").
-            // new Date("2023-01-01") is usually UTC. new Date("2023-01-01T00:00") is local.
-            // Let's stick to what we had: `new Date('${date}T${startTime}:00')`.
-
-            // For all day, we can just use T00:00:00.
             startISO = new Date(`${date}T00:00:00`).toISOString();
-
-            // End Date
-            // We take the input value (inclusive), add 1 day to make it exclusive for FullCalendar
             const e = new Date(`${endDate}T00:00:00`);
             e.setDate(e.getDate() + 1);
             endISO = e.toISOString();
@@ -806,8 +780,6 @@ class UI {
             endISO = new Date(`${date}T${endTime}:00`).toISOString();
 
             if (endISO <= startISO) {
-                 // Maybe it ends next day? Original app didn't seem to support that explicit input (only one date).
-                 // So we assume same day.
                  alert('End time must be after start time.');
                  return null;
             }
@@ -819,13 +791,39 @@ class UI {
             return null;
         }
 
+        // Handle Image Data
         const imageFile = this.elements.eventImageFile.files[0];
+        let imageDataUrl = null;
+        let originalImageDataUrl = null;
+
+        if (this.activeCropper) {
+            // Cropped
+            imageDataUrl = this.activeCropper.getCroppedCanvas().toDataURL();
+            originalImageDataUrl = this.originalImageSource;
+        } else if (imageFile) {
+            // Just file, no crop (shouldn't happen if we auto-init cropper, but safe fallback)
+            // But we can't sync get dataUrl here easily without await, so we rely on what we have.
+            // If getEventFormData is sync, we have a problem.
+            // But `saveEventFromForm` awaits `getEventFormData`.
+            // Wait, `getEventFormData` is currently synchronous in app.js usage?
+            // `saveEventFromForm` calls it. `saveEventFromForm` is async.
+            // So I can return a Promise? No, app.js expects object.
+            // I should make `getEventFormData` async or handle file reading before.
+            // BUT: `imageFile` is a File object. App.js handles it.
+            // I need to pass the cropped data url if available.
+        }
+
+        // We will return properties, and let App.js / EventService handle them.
+        // We add `imageDataUrl` and `originalImageDataUrl` to result.
+        // `imageFile` is standard.
 
         return {
             id,
             calendar,
             name,
-            imageFile, // Pass the file if selected
+            imageFile,
+            imageDataUrl, // Cropped version
+            originalImageDataUrl, // Original version
             start: startISO,
             end: endISO,
             allDay: isAllDay,
@@ -846,7 +844,6 @@ class UI {
                 .filter(input => input.checked)
                 .map(input => Number(input.value));
 
-            // User Request: "Not selecting any... means selecting all"
             if (days.length === 0) {
                 days = [0, 1, 2, 3, 4, 5, 6];
             }
@@ -881,39 +878,72 @@ class UI {
     toggleModal(modalElement, show) {
         if (show) {
             modalElement.classList.remove('hidden');
-            // Delay to allow the display property to apply before starting the transition
             setTimeout(() => modalElement.classList.add('visible'), 10);
         } else {
             modalElement.classList.remove('visible');
-            // Hide the element after the transition is complete
             setTimeout(() => modalElement.classList.add('hidden'), 300);
         }
     }
 
-    setupImagePreview(fileInput, imgEl, cropXInput, cropYInput) {
+    // Updated: Uses Cropper
+    setupImageCropper(fileInput, imgEl, slidersToHide = []) {
         if (!fileInput || !imgEl) return;
-
-        const updatePosition = () => {
-            const x = cropXInput ? cropXInput.value : 50;
-            const y = cropYInput ? cropYInput.value : 50;
-            imgEl.style.objectPosition = `${x}% ${y}%`;
-        };
-
-        if (cropXInput) cropXInput.addEventListener('input', updatePosition);
-        if (cropYInput) cropYInput.addEventListener('input', updatePosition);
 
         fileInput.addEventListener('change', async () => {
             const file = fileInput.files[0];
             if (file) {
                 const dataUrl = await this.readFileAsDataURL(file);
+                this.originalImageSource = dataUrl;
                 imgEl.src = dataUrl;
                 imgEl.style.display = 'block';
-                updatePosition();
+
+                // Hide sliders
+                slidersToHide.forEach(slider => {
+                    if (slider) slider.parentElement.style.display = 'none';
+                });
+
+                // Initialize Cropper
+                this.initCropper(imgEl);
             } else {
                 imgEl.style.display = 'none';
                 imgEl.src = '';
+                this.destroyCropper();
+                slidersToHide.forEach(slider => {
+                    if (slider) slider.parentElement.style.display = 'block';
+                });
             }
         });
+    }
+
+    // Backwards compatibility / simplified preview setup for where we don't use cropper?
+    // But we replaced it in `init`.
+    setupImagePreview(fileInput, imgEl, cropXInput, cropYInput) {
+        // This is now replaced by setupImageCropper for main inputs.
+        // We can keep it or redirect.
+    }
+
+    initCropper(imgEl) {
+        this.destroyCropper();
+        this.activeCropper = new Cropper(imgEl, {
+            viewMode: 1,
+            dragMode: 'move',
+            autoCropArea: 1,
+            restore: false,
+            guides: false,
+            center: false,
+            highlight: false,
+            cropBoxMovable: true,
+            cropBoxResizable: true,
+            toggleDragModeOnDblclick: false,
+        });
+    }
+
+    destroyCropper() {
+        if (this.activeCropper) {
+            this.activeCropper.destroy();
+            this.activeCropper = null;
+        }
+        this.originalImageSource = null;
     }
 
     showToast(message, type = 'info') {
@@ -922,12 +952,10 @@ class UI {
         toast.textContent = message;
         document.body.appendChild(toast);
 
-        // Animation in
         requestAnimationFrame(() => {
             toast.classList.add('visible');
         });
 
-        // Remove after 3s
         setTimeout(() => {
             toast.classList.remove('visible');
             setTimeout(() => {
@@ -935,6 +963,7 @@ class UI {
             }, 300);
         }, 3000);
     }
+
     setupEventImageHandling() {
         // Preview for manual upload
         if (this.elements.eventImageFile && this.elements.eventImagePreview) {
@@ -942,11 +971,15 @@ class UI {
                 const file = this.elements.eventImageFile.files[0];
                 if (file) {
                     const dataUrl = await this.readFileAsDataURL(file);
+                    this.originalImageSource = dataUrl;
                     this.elements.eventImagePreview.src = dataUrl;
                     this.elements.eventImagePreview.style.display = 'block';
+
+                    this.initCropper(this.elements.eventImagePreview);
                 } else {
                     this.elements.eventImagePreview.style.display = 'none';
                     this.elements.eventImagePreview.src = '';
+                    this.destroyCropper();
                 }
             });
         }
@@ -959,7 +992,7 @@ class UI {
                     const match = this.app.imageService.findImageByCategoryName(name);
                     if (match) {
                         this.elements.eventImageSuggestion.textContent = `Suggestion available: Use image for "${match.category}"`;
-                        this.elements.eventImageSuggestion.dataset.url = match.url; // Store URL
+                        this.elements.eventImageSuggestion.dataset.url = match.url;
                         this.elements.eventImageSuggestion.style.display = 'block';
                     } else {
                         this.elements.eventImageSuggestion.style.display = 'none';
@@ -972,18 +1005,10 @@ class UI {
             this.elements.eventImageSuggestion.addEventListener('click', () => {
                 const url = this.elements.eventImageSuggestion.dataset.url;
                 if (url) {
-                    // We can't set file input value, so we'll fetch blob or just pass URL?
-                    // Ideally, we just show preview and set a flag/hidden input.
-                    // For simplicity, let's just show preview and maybe set a property on the form data?
-                    // Actually, if it's an existing image, we can just LINK it.
-                    // But the request says "Add the possibility to add an image... If string is recognized... corresponding is suggested to be included."
-                    // If included, maybe it means "use that category image".
-                    // But we already do that automatically if the name matches!
-                    // Maybe the user wants to *explicitly* attach it to this event, even if name changes?
-                    // Or maybe just auto-fill the preview so they know.
                     this.elements.eventImagePreview.src = url;
                     this.elements.eventImagePreview.style.display = 'block';
-                    this.elements.eventImagePreview.dataset.useUrl = url; // Flag to use this URL
+                    this.originalImageSource = url;
+                    this.initCropper(this.elements.eventImagePreview);
                 }
             });
         }

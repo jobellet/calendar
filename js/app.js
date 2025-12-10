@@ -494,8 +494,24 @@ class CalendarApp {
         const savedEvent = await this.eventService.save(formData);
 
         // Handle Image
-        if (formData.imageFile && savedEvent) {
-            const crop = { cropX: 50, cropY: 50 }; // Default center
+        // If imageDataUrl is present, we save it (edited version) along with original if available.
+        // If ONLY imageFile is present and no imageDataUrl, it means direct upload no crop (not expected with activeCropper, but fallback).
+
+        if (formData.imageDataUrl && savedEvent) {
+             const crop = { cropX: 50, cropY: 50 };
+             await this.imageService.saveEventImage(
+                 savedEvent.id,
+                 formData.imageDataUrl,
+                 crop,
+                 formData.originalImageDataUrl
+             );
+             this.refreshCalendarEvents();
+        } else if (formData.imageFile && savedEvent) {
+            // Fallback for direct file if somehow cropper failed or wasn't used?
+            // Or if user selected file but didn't crop?
+            // In our UI implementation, we auto-init cropper.
+            // But let's handle the "raw" read just in case.
+            const crop = { cropX: 50, cropY: 50 };
             const reader = new FileReader();
             reader.onload = async (e) => {
                 await this.imageService.saveEventImage(savedEvent.id, e.target.result, crop);
@@ -508,14 +524,14 @@ class CalendarApp {
         }
     }
 
-    async saveCalendarImage(calendarName, dataUrl, crop) {
-        await this.imageService.saveCalendarImage(calendarName, dataUrl, crop);
+    async saveCalendarImage(calendarName, dataUrl, crop, originalDataUrl) {
+        await this.imageService.saveCalendarImage(calendarName, dataUrl, crop, originalDataUrl);
         this.refreshCalendarResources(); // Re-render headers
         this.refreshCalendarEvents();
     }
 
-    async saveCategoryImage(scope, category, dataUrl, crop) {
-        await this.imageService.saveCategoryImage(scope, category, dataUrl, crop);
+    async saveCategoryImage(scope, category, dataUrl, crop, originalDataUrl) {
+        await this.imageService.saveCategoryImage(scope, category, dataUrl, crop, originalDataUrl);
 
         // Mark matching events as having an image
         const matchingEvents = this.eventService.getAll().filter(ev =>
