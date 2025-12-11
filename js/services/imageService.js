@@ -22,9 +22,13 @@ class ImageService {
     findEventImage(event) {
         if (!event) return null;
 
+        // Priority 0: Edited event image
+        const editedIdMatch = this.images.find(img => img.id === `event:${event.id}_edited`);
+        if (editedIdMatch && !editedIdMatch.deleted) return editedIdMatch;
+
         // Priority 1: Specific event image
         const eventIdMatch = this.images.find(img => img.id === `event:${event.id}`);
-        if (eventIdMatch) return eventIdMatch;
+        if (eventIdMatch && !eventIdMatch.deleted) return eventIdMatch;
 
         // Priority 2: Category image
         const normalizedName = (event.name || '').trim().toLowerCase();
@@ -88,8 +92,9 @@ class ImageService {
         await this._save(imageEntry);
     }
 
-    async saveEventImage(eventId, dataUrl, crop = {}) {
-        const id = `event:${eventId}`;
+    async saveEventImage(eventId, dataUrl, crop = {}, isEdited = false) {
+        const suffix = isEdited ? '_edited' : '';
+        const id = `event:${eventId}${suffix}`;
         const metadata = await this._extractMetadata(dataUrl);
         const imageEntry = {
             id,
