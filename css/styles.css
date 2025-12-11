@@ -105,6 +105,32 @@ body {
     /* Hidden on desktop */
 }
 
+/* Settings Button */
+#settings-btn {
+    position: absolute;
+    top: 16px;
+    right: 20px;
+    z-index: 2000;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    font-size: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    transition: transform 0.2s;
+}
+
+#settings-btn:hover {
+    transform: rotate(45deg);
+    background: white;
+}
+
 /* Close Sidebar Button (Mobile) */
 .close-sidebar-btn {
     display: none;
@@ -696,6 +722,11 @@ button[type="button"].cancel-btn:hover {
         cursor: pointer;
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
         color: var(--text-main);
+    }
+
+    #settings-btn {
+        right: 16px; /* Adjust for mobile margin */
+        top: 16px;
     }
 }
 
