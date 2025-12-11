@@ -570,21 +570,31 @@ class CalendarApp {
             if (i === 0) primarySavedEvent = saved;
 
             // Handle Image for EACH copy if provided
+            const crop = { cropX: 50, cropY: 50 };
+
+            // 1. New File Uploaded
             if (formData.imageFile && saved) {
-                const crop = { cropX: 50, cropY: 50 };
-                const reader = new FileReader();
-                // We need to read it once, but FileReader is async.
-                // We can read it once outside loop.
-                // Let's wrap in a promise helper
+                // Save Original
                 await new Promise((resolve) => {
                     const r = new FileReader();
                     r.onload = async (e) => {
-                        await this.imageService.saveEventImage(saved.id, e.target.result, crop);
+                        await this.imageService.saveEventImage(saved.id, e.target.result, crop, false); // isEdited = false
                         resolve();
                     };
                     r.readAsDataURL(formData.imageFile);
                 });
-            } else if (originalId && saved && saved.id !== originalId) {
+
+                // Save Cropped (if available)
+                if (formData.croppedDataUrl) {
+                     await this.imageService.saveEventImage(saved.id, formData.croppedDataUrl, crop, true); // isEdited = true
+                }
+            }
+            // 2. Existing image edited (cropped) but no new file
+            else if (formData.croppedDataUrl && saved) {
+                 await this.imageService.saveEventImage(saved.id, formData.croppedDataUrl, crop, true); // isEdited = true
+            }
+
+            else if (originalId && saved && saved.id !== originalId) {
                 // If we are copying (new ID) from an existing event (originalId), check if original had an image and copy it?
                 // The service might not automatically copy image data since it's separate.
                 // But the user didn't explicitly ask for deep copy of images on creation.

@@ -622,6 +622,30 @@ class UI {
         this.elements.eventId.value = eventData?.id || '';
         this.elements.eventName.value = eventData?.name || '';
 
+        // Setup Image Preview for existing event
+        if (this.app && eventData && eventData.id) {
+            const imageEntry = this.app.imageService.findEventImage(eventData);
+            if (imageEntry) {
+                this.elements.eventImagePreview.src = imageEntry.url;
+                this.elements.eventImagePreview.style.display = 'block';
+                this.elements.eventImagePreview.dataset.originalUrl = imageEntry.url; // Track original
+            } else {
+                this.elements.eventImagePreview.src = '';
+                this.elements.eventImagePreview.style.display = 'none';
+                delete this.elements.eventImagePreview.dataset.originalUrl;
+            }
+        } else {
+            this.elements.eventImagePreview.src = '';
+            this.elements.eventImagePreview.style.display = 'none';
+            delete this.elements.eventImagePreview.dataset.originalUrl;
+        }
+
+        // Destroy existing cropper if any
+        if (this.currentCropper) {
+            this.currentCropper.destroy();
+            this.currentCropper = null;
+        }
+
         // Clear all checks first
         const checkboxes = this.elements.eventCalendarList.querySelectorAll('input[type="checkbox"]');
         checkboxes.forEach(cb => cb.checked = false);
@@ -847,12 +871,17 @@ class UI {
         }
 
         const imageFile = this.elements.eventImageFile.files[0];
+        let croppedDataUrl = null;
+        if (this.currentCropper) {
+            croppedDataUrl = this.currentCropper.getCroppedCanvas().toDataURL();
+        }
 
         return {
             id,
             calendars: selectedCalendars, // Array of calendar names
             name,
             imageFile, // Pass the file if selected
+            croppedDataUrl, // Pass cropped data if available
             start: startISO,
             end: endISO,
             allDay: isAllDay,
@@ -1052,7 +1081,7 @@ class UI {
         }, 3000);
     }
     setupEventImageHandling() {
-        // Preview for manual upload
+        // Preview for manual upload and Cropper init
         if (this.elements.eventImageFile && this.elements.eventImagePreview) {
             this.elements.eventImageFile.addEventListener('change', async () => {
                 const file = this.elements.eventImageFile.files[0];
@@ -1060,9 +1089,23 @@ class UI {
                     const dataUrl = await this.readFileAsDataURL(file);
                     this.elements.eventImagePreview.src = dataUrl;
                     this.elements.eventImagePreview.style.display = 'block';
+
+                    // Initialize Cropper
+                    if (this.currentCropper) {
+                        this.currentCropper.destroy();
+                    }
+                    this.currentCropper = new Cropper(this.elements.eventImagePreview, {
+                        viewMode: 1,
+                        autoCropArea: 1,
+                    });
+
                 } else {
                     this.elements.eventImagePreview.style.display = 'none';
                     this.elements.eventImagePreview.src = '';
+                    if (this.currentCropper) {
+                        this.currentCropper.destroy();
+                        this.currentCropper = null;
+                    }
                 }
             });
         }
