@@ -25,6 +25,16 @@ class UI {
             imgCategoryCropX: document.getElementById('img-category-crop-x'),
             imgCategoryCropY: document.getElementById('img-category-crop-y'),
             imgCategorySaveBtn: document.getElementById('img-category-save-btn'),
+            // Settings elements
+            settingsBtn: document.getElementById('settings-btn'),
+            settingsPanel: document.getElementById('settings-panel'),
+            closeSettingsPanelBtn: document.getElementById('close-settings-panel-btn'),
+            settingsForm: document.getElementById('settings-form'),
+            settingsLanguage: document.getElementById('settings-language'),
+            settingsVoiceEnabled: document.getElementById('settings-voice-enabled'),
+            settingsVoiceLeadTime: document.getElementById('settings-voice-lead-time'),
+            settingsVoiceAtStart: document.getElementById('settings-voice-at-start'),
+            voiceSettingsGroup: document.getElementById('voice-settings-group'),
             // Login overlay
             loginOverlay: document.getElementById('login-overlay'),
             loginForm: document.getElementById('login-form'),
@@ -182,6 +192,34 @@ class UI {
                 this.app.undoLastAction();
             }
         });
+
+        // Settings Button
+        if (this.elements.settingsBtn) {
+            this.elements.settingsBtn.addEventListener('click', () => {
+                this.populateSettingsForm();
+                this.toggleModal(this.elements.settingsPanel, true);
+            });
+        }
+
+        if (this.elements.closeSettingsPanelBtn) {
+            this.elements.closeSettingsPanelBtn.addEventListener('click', () => {
+                this.toggleModal(this.elements.settingsPanel, false);
+            });
+        }
+
+        if (this.elements.settingsForm) {
+            this.elements.settingsForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                this.saveSettings();
+                this.toggleModal(this.elements.settingsPanel, false);
+            });
+        }
+
+        if (this.elements.settingsVoiceEnabled) {
+             this.elements.settingsVoiceEnabled.addEventListener('change', () => {
+                 this.toggleVoiceSettings();
+             });
+        }
 
         // Sync button -> open login overlay
         this.elements.syncBtn.addEventListener('click', () => {
@@ -589,6 +627,44 @@ class UI {
                 this.app.setCalendarVisibility(calendarName, isVisible);
             });
         });
+    }
+
+    populateSettingsForm() {
+        const settings = this.app.settingsService.get();
+        if (this.elements.settingsLanguage) this.elements.settingsLanguage.value = settings.language;
+        if (this.elements.settingsVoiceEnabled) this.elements.settingsVoiceEnabled.checked = settings.voiceEnabled;
+        if (this.elements.settingsVoiceLeadTime) this.elements.settingsVoiceLeadTime.value = settings.voiceLeadTime;
+        if (this.elements.settingsVoiceAtStart) this.elements.settingsVoiceAtStart.checked = settings.voiceAtStart;
+
+        this.toggleVoiceSettings();
+    }
+
+    saveSettings() {
+        const newSettings = {
+            language: this.elements.settingsLanguage.value,
+            voiceEnabled: this.elements.settingsVoiceEnabled.checked,
+            voiceLeadTime: parseInt(this.elements.settingsVoiceLeadTime.value, 10),
+            voiceAtStart: this.elements.settingsVoiceAtStart.checked
+        };
+        this.app.settingsService.save(newSettings);
+        this.showToast('Settings saved', 'success');
+
+        // Restart notification loop to pick up new settings
+        this.app.restartNotificationLoop();
+    }
+
+    toggleVoiceSettings() {
+        if (!this.elements.voiceSettingsGroup || !this.elements.settingsVoiceEnabled) return;
+        const enabled = this.elements.settingsVoiceEnabled.checked;
+        if (enabled) {
+            this.elements.voiceSettingsGroup.classList.remove('hidden');
+            this.elements.voiceSettingsGroup.style.opacity = '1';
+            this.elements.voiceSettingsGroup.style.pointerEvents = 'auto';
+        } else {
+             this.elements.voiceSettingsGroup.classList.add('hidden');
+             this.elements.voiceSettingsGroup.style.opacity = '0.5';
+             this.elements.voiceSettingsGroup.style.pointerEvents = 'none';
+        }
     }
 
     refreshImagePanelSelectors() {

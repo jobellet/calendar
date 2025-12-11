@@ -7,6 +7,7 @@ class CalendarApp {
     constructor() {
         this.db = new Database();
         this.historyService = new HistoryService();
+        this.settingsService = new SettingsService();
         this.eventService = new EventService(this.db, this.historyService);
         this.imageService = new ImageService(this.db);
         this.calendarService = new CalendarService(this.db);
@@ -15,6 +16,8 @@ class CalendarApp {
         this.fullCalendar = null;
         this.hoursViewMode = 'auto'; // 'auto' or 'manual'
         this.hoursViewCenterTime = null;
+        this.notificationInterval = null;
+        this.notifiedEvents = new Set(); // To prevent duplicate notifications
     }
 
     async init() {
@@ -37,6 +40,73 @@ class CalendarApp {
         this.initFullCalendar();
         this.setupKeyboardShortcuts();
         this.ui.setSyncStatus(false);
+        this.restartNotificationLoop();
+    }
+
+    restartNotificationLoop() {
+        if (this.notificationInterval) {
+            clearInterval(this.notificationInterval);
+        }
+
+        const settings = this.settingsService.get();
+        if (settings.voiceEnabled) {
+            this.checkNotifications(); // Run immediately
+            this.notificationInterval = setInterval(() => this.checkNotifications(), 30000); // Check every 30s
+        }
+    }
+
+    checkNotifications() {
+        const settings = this.settingsService.get();
+        if (!settings.voiceEnabled) return;
+
+        const now = new Date();
+        const events = this.eventService.getAll();
+
+        events.forEach(event => {
+            if (event.deleted || event.allDay) return;
+
+            const start = new Date(event.start);
+            const diffMs = start - now;
+            const diffMinutes = Math.round(diffMs / 60000);
+
+            // 1. Check "At Start" (approx 0 minutes, tolerance +/- 1 min)
+            if (settings.voiceAtStart && diffMinutes === 0) {
+                 const key = `${event.id}_start`;
+                 if (!this.notifiedEvents.has(key)) {
+                     this.speak(event.name, 0);
+                     this.notifiedEvents.add(key);
+                     // Clear from set after 5 mins to cleanup
+                     setTimeout(() => this.notifiedEvents.delete(key), 300000);
+                 }
+            }
+
+            // 2. Check "Before Start"
+            if (settings.voiceLeadTime > 0 && diffMinutes === settings.voiceLeadTime) {
+                 const key = `${event.id}_before`;
+                 if (!this.notifiedEvents.has(key)) {
+                     this.speak(event.name, settings.voiceLeadTime);
+                     this.notifiedEvents.add(key);
+                     setTimeout(() => this.notifiedEvents.delete(key), 300000);
+                 }
+            }
+        });
+    }
+
+    speak(eventName, minutesBefore) {
+        if (!('speechSynthesis' in window)) return;
+
+        const text = this.settingsService.getNotificationText(eventName, minutesBefore);
+        const utterance = new SpeechSynthesisUtterance(text);
+
+        // Set language
+        const settings = this.settingsService.get();
+        utterance.lang = settings.language;
+
+        // Find a matching voice if possible (optional)
+        // const voices = window.speechSynthesis.getVoices();
+        // utterance.voice = voices.find(v => v.lang.startsWith(settings.language));
+
+        window.speechSynthesis.speak(utterance);
     }
 
     setupKeyboardShortcuts() {

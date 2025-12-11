@@ -9,6 +9,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="css/utils.css">
     <link rel="stylesheet" href="css/header-img.css">
     <link rel="stylesheet" href="css/close-btn.css">
     <link rel="stylesheet" href="css/features.css">
@@ -25,6 +26,9 @@
     <div id="app-container">
         <!-- Mobile Menu Toggle (Floating) -->
         <button class="mobile-menu-toggle">☰</button>
+
+        <!-- Settings Button -->
+        <button id="settings-btn" title="Settings">⚙️</button>
 
         <!-- Sidebar Overlay -->
         <div id="sidebar-overlay"></div>
@@ -76,6 +80,48 @@
                 <div id="time-hover-help">Move the mouse up/down, then click to create an event at that time.</div>
             </div>
         </aside>
+    </div>
+
+    <!-- Settings Panel -->
+    <div id="settings-panel" class="overlay">
+        <div id="settings-content" class="modal-box">
+            <button id="close-settings-panel-btn" type="button" class="close-modal-x">×</button>
+            <h2>Settings</h2>
+            <form id="settings-form">
+                <label>
+                    Language
+                    <select id="settings-language">
+                        <option value="en-US">English</option>
+                        <option value="fr-FR">Français</option>
+                        <option value="es-ES">Español</option>
+                        <option value="de-DE">Deutsch</option>
+                        <option value="it-IT">Italiano</option>
+                    </select>
+                </label>
+
+                <div style="border-top: 1px solid #eee; margin: 10px 0;"></div>
+
+                <h3>Voice Notifications</h3>
+                <label class="checkbox-label">
+                    <input type="checkbox" id="settings-voice-enabled">
+                    Enable voice notifications
+                </label>
+
+                <div id="voice-settings-group">
+                    <label>
+                        Notify before start (minutes)
+                        <input type="number" id="settings-voice-lead-time" min="1" max="1440" value="10">
+                    </label>
+
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="settings-voice-at-start">
+                        Notify when event starts
+                    </label>
+                </div>
+
+                <button type="submit">Save Settings</button>
+            </form>
+        </div>
     </div>
 
     <!-- Image Management Panel -->
@@ -264,6 +310,7 @@
 
     <script src="js/db.js"></script>
     <script src="js/services/historyService.js"></script>
+    <script src="js/services/settingsService.js"></script>
     <script src="js/services/eventService.js"></script>
     <script src="js/services/imageService.js"></script>
     <script src="js/services/calendarService.js"></script>
