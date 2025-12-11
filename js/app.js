@@ -57,10 +57,14 @@ class CalendarApp {
 
     checkNotifications() {
         const settings = this.settingsService.get();
-        if (!settings.voiceEnabled) return;
+        if (!settings.voiceEnabled) {
+            console.debug('Voice disabled, skipping check.');
+            return;
+        }
 
         const now = new Date();
         const events = this.eventService.getAll();
+        console.debug(`Checking notifications for ${events.length} events at ${now.toLocaleTimeString()}`);
 
         events.forEach(event => {
             if (event.deleted || event.allDay) return;
@@ -69,14 +73,19 @@ class CalendarApp {
             const diffMs = start - now;
             const diffMinutes = Math.round(diffMs / 60000);
 
+            console.debug(`Event: ${event.name}, Starts: ${start.toLocaleTimeString()}, Diff: ${diffMinutes}m`);
+
             // 1. Check "At Start" (approx 0 minutes, tolerance +/- 1 min)
             if (settings.voiceAtStart && diffMinutes === 0) {
                  const key = `${event.id}_start`;
                  if (!this.notifiedEvents.has(key)) {
+                     console.log(`Triggering start notification for "${event.name}"`);
                      this.speak(event.name, 0);
                      this.notifiedEvents.add(key);
                      // Clear from set after 5 mins to cleanup
                      setTimeout(() => this.notifiedEvents.delete(key), 300000);
+                 } else {
+                     console.debug(`Already notified start for "${event.name}"`);
                  }
             }
 
@@ -84,27 +93,50 @@ class CalendarApp {
             if (settings.voiceLeadTime > 0 && diffMinutes === settings.voiceLeadTime) {
                  const key = `${event.id}_before`;
                  if (!this.notifiedEvents.has(key)) {
+                     console.log(`Triggering lead time notification for "${event.name}" (${settings.voiceLeadTime}m)`);
                      this.speak(event.name, settings.voiceLeadTime);
                      this.notifiedEvents.add(key);
                      setTimeout(() => this.notifiedEvents.delete(key), 300000);
+                 } else {
+                     console.debug(`Already notified lead time for "${event.name}"`);
                  }
             }
         });
     }
 
+    testVoice() {
+        if (!('speechSynthesis' in window)) {
+            alert('Your browser does not support voice notifications.');
+            return;
+        }
+        console.log('Testing voice...');
+        const settings = this.settingsService.get();
+        const text = settings.language.startsWith('en') ? "Voice notifications are working." :
+                     settings.language.startsWith('fr') ? "Les notifications vocales fonctionnent." :
+                     settings.language.startsWith('es') ? "Las notificaciones de voz funcionan." :
+                     settings.language.startsWith('de') ? "Sprachbenachrichtigungen funktionieren." :
+                     settings.language.startsWith('it') ? "Le notifiche vocali funzionano." :
+                     "Voice test.";
+
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = settings.language;
+        window.speechSynthesis.speak(utterance);
+    }
+
     speak(eventName, minutesBefore) {
-        if (!('speechSynthesis' in window)) return;
+        if (!('speechSynthesis' in window)) {
+            console.warn('speechSynthesis not supported');
+            return;
+        }
 
         const text = this.settingsService.getNotificationText(eventName, minutesBefore);
+        console.log(`Speaking: "${text}" (Lang: ${this.settingsService.get().language})`);
+
         const utterance = new SpeechSynthesisUtterance(text);
 
         // Set language
         const settings = this.settingsService.get();
         utterance.lang = settings.language;
-
-        // Find a matching voice if possible (optional)
-        // const voices = window.speechSynthesis.getVoices();
-        // utterance.voice = voices.find(v => v.lang.startsWith(settings.language));
 
         window.speechSynthesis.speak(utterance);
     }

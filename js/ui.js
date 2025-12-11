@@ -35,6 +35,7 @@ class UI {
             settingsVoiceLeadTime: document.getElementById('settings-voice-lead-time'),
             settingsVoiceAtStart: document.getElementById('settings-voice-at-start'),
             voiceSettingsGroup: document.getElementById('voice-settings-group'),
+            testVoiceBtn: document.getElementById('test-voice-btn'),
             // Login overlay
             loginOverlay: document.getElementById('login-overlay'),
             loginForm: document.getElementById('login-form'),
@@ -219,6 +220,12 @@ class UI {
              this.elements.settingsVoiceEnabled.addEventListener('change', () => {
                  this.toggleVoiceSettings();
              });
+        }
+
+        if (this.elements.testVoiceBtn) {
+            this.elements.testVoiceBtn.addEventListener('click', () => {
+                this.app.testVoice();
+            });
         }
 
         // Sync button -> open login overlay

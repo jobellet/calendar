@@ -21,14 +21,7 @@ def verify_settings():
 
         # 3. Verify Modal Appears
         settings_panel = page.locator("#settings-panel")
-        # Use regex pattern directly in the expectation if the library version supports it,
-        # but to be safe with standard matchers, we can check if it contains the class.
-        # .to_have_class can take a regex in Python playwright too.
         expect(settings_panel).to_have_class(re.compile(r"visible"))
-
-        # Take screenshot of settings modal
-        page.screenshot(path="verification/settings_modal.png")
-        print("Screenshot saved to verification/settings_modal.png")
 
         # 4. Interact with Voice Settings
         voice_checkbox = page.locator("#settings-voice-enabled")
@@ -40,7 +33,15 @@ def verify_settings():
         # Verify expanded options are visible
         voice_group = page.locator("#voice-settings-group")
         expect(voice_group).to_be_visible()
-        # expect(voice_group).not_to_have_class("hidden") # This might require exact match or regex
+
+        # Check Test Voice Button
+        test_btn = page.locator("#test-voice-btn")
+        expect(test_btn).to_be_visible()
+        test_btn.click()
+
+        # Take screenshot of settings modal with Test Voice button
+        page.screenshot(path="verification/settings_modal_test_btn.png")
+        print("Screenshot saved to verification/settings_modal_test_btn.png")
 
         # Change lead time
         lead_time_input = page.locator("#settings-voice-lead-time")
