@@ -123,12 +123,10 @@ class MegaSync {
         // We use IDs.
         // If an item exists in both, we take the one with later `updatedAt`.
         // If an item exists in one but not the other:
-        // - If it's a delete operation, we might miss it unless we have a "deleted items" log.
-        // - Current system doesn't seem to have a "deleted items" log (tombstones).
-        // - So we will just take the UNION of both sets.
-        // - If user deleted an item on device A, and device B still has it, it will reappear.
-        // - To fix this proper sync needs tombstones.
-        // - Given the constraints and current codebase, "Union + Timestamp win" is standard "naive" sync.
+        // - Since we now implement soft deletes (tombstones) with the `deleted` flag and `updatedAt` maintenance
+        //   in the services, checking existence + timestamp is sufficient.
+        // - A missing item in `remote` (and present in `local`) implies it is new in `local`.
+        // - If an item was deleted in `remote`, it will be present in `remote` with `deleted: true`.
 
         const mergedEvents = this.mergeCollections(local.events, remote.events);
         const mergedCalendars = this.mergeCollections(local.calendars, remote.calendars, 'name'); // calendars use 'name' as key

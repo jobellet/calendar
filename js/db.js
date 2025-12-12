@@ -57,14 +57,6 @@ class Database {
             const transaction = this.db.transaction([storeName], 'readwrite');
             const store = transaction.objectStore(storeName);
 
-            const now = Date.now();
-            if (storeName === 'events' || storeName === 'images' || storeName === 'calendars') {
-                if (!item.createdAt) {
-                    item.createdAt = now;
-                }
-                item.updatedAt = now;
-            }
-
             const request = store.put(item);
 
             request.onsuccess = () => resolve();

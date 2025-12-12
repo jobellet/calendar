@@ -15,6 +15,7 @@ class ImageService {
         const img = this.images.find(i => i.id === id);
         if (img) {
             img.deleted = true;
+            img.updatedAt = Date.now();
             await this._save(img);
         }
     }
@@ -110,6 +111,12 @@ class ImageService {
     }
 
     async _save(imageEntry) {
+        const now = Date.now();
+        if (!imageEntry.createdAt) {
+            imageEntry.createdAt = now;
+        }
+        imageEntry.updatedAt = now;
+
         await this.db.save('images', imageEntry);
         const normalized = this._normalizeEntry(imageEntry);
         const existingIndex = this.images.findIndex(img => img.id === normalized.id);
