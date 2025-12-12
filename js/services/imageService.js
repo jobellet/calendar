@@ -41,15 +41,6 @@ class ImageService {
             return match;
         }
 
-        // Priority 3: Calendar image (if no category match)
-        // Actually, the user wants "event content" to be image if available.
-        // If NO event image, NO category image, do we show calendar image?
-        // Current logic says: yes, if calendar has one.
-        // User request: "Ensuring Calendar Header Images Only... event content... event name OR event category image"
-        // So we should REMOVE the calendar image fallback for EVENTS.
-        // Wait, step 1 said "Confirming that images are exclusively displayed in calendar column headers...".
-        // So if I return a calendar image here, it might be used in event content.
-        // I should DELETE the fallback to calendar image here.
         return null;
     }
 
@@ -128,6 +119,8 @@ class ImageService {
         normalized.cropX = Number.isFinite(parsedCropX) ? parsedCropX : 50;
         normalized.cropY = Number.isFinite(parsedCropY) ? parsedCropY : 50;
         normalized.averageColor = normalized.averageColor || '#f5f5f5';
+        // Ensure filename is preserved or initialized
+        normalized.filename = normalized.filename || null;
         return normalized;
     }
 
