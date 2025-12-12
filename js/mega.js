@@ -35,6 +35,18 @@ class MegaSync {
         }
     }
 
+    async logout() {
+        if (this.storage) {
+             console.log('[MegaSync] Logging out...');
+             // Attempt to cancel any active transfers or close connection if supported
+             // MegaJS storage object doesn't have an explicit close/logout method that clears memory,
+             // but we can nullify our reference.
+             this.storage = null;
+        }
+        this.email = null;
+        console.log('[MegaSync] Logged out.');
+    }
+
     async sync(localEvents, localCalendars, localImages) {
         if (!this.storage) {
             console.warn('[MegaSync] Cannot sync: Not logged in');

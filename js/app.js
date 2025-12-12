@@ -31,13 +31,18 @@ class CalendarApp {
         this.ui.init(this);
         this.ui.renderCalendars(calendars, visibleCalendars);
 
-        // Mark "Day" view button active by default
+        this.initFullCalendar();
+
+        // Mark the correct view button active based on initialView
+        // Note: 'resourceTimeGridDay' maps to 'timeGridDay' button (Day) or 'hoursView' depending on intent.
+        // The default initialView is 'resourceTimeGridDay'.
+        // If we want the Day button (timeGridDay) to be active, we should check what that button does.
+        // It calls changeView('timeGridDay') -> which switches to 'resourceTimeGridDay'.
+        // So 'resourceTimeGridDay' corresponds to the "Day" button.
         const dayBtn = this.ui.elements.viewSelector.querySelector('button[data-view="timeGridDay"]');
         if (dayBtn) {
             this.ui.setActiveViewButton(dayBtn);
         }
-
-        this.initFullCalendar();
         this.setupKeyboardShortcuts();
         this.ui.setSyncStatus(false);
         this.restartNotificationLoop();
@@ -51,7 +56,7 @@ class CalendarApp {
         const settings = this.settingsService.get();
         if (settings.voiceEnabled) {
             this.checkNotifications(); // Run immediately
-            this.notificationInterval = setInterval(() => this.checkNotifications(), 30000); // Check every 30s
+            this.notificationInterval = setInterval(() => this.checkNotifications(), 5000); // Check every 5s
         }
     }
 
@@ -67,26 +72,38 @@ class CalendarApp {
 
             const start = new Date(event.start);
             const diffMs = start - now;
-            const diffMinutes = Math.round(diffMs / 60000);
 
-            // 1. Check "At Start" (approx 0 minutes, tolerance +/- 1 min)
-            if (settings.voiceAtStart && diffMinutes === 0) {
-                 const key = `${event.id}_start`;
-                 if (!this.notifiedEvents.has(key)) {
-                     this.speak(event.name, 0);
-                     this.notifiedEvents.add(key);
-                     // Clear from set after 5 mins to cleanup
-                     setTimeout(() => this.notifiedEvents.delete(key), 300000);
-                 }
+            // Tolerance window for "At Start": -30s to +30s (approx 0 min)
+            // But we run every 5s, so we just need to be within a window.
+            // Let's say we notify if within -10s to +60s of the target time?
+            // Actually, comparing absolute difference is safer.
+
+            // 1. Check "At Start"
+            if (settings.voiceAtStart) {
+                // Target: 0 minutes before.
+                // Allow notification if we are within [-30s, 30s] of start time.
+                if (Math.abs(diffMs) <= 30000) {
+                     const key = `${event.id}_start`;
+                     if (!this.notifiedEvents.has(key)) {
+                         this.speak(event.name, 0);
+                         this.notifiedEvents.add(key);
+                         setTimeout(() => this.notifiedEvents.delete(key), 300000);
+                     }
+                }
             }
 
             // 2. Check "Before Start"
-            if (settings.voiceLeadTime > 0 && diffMinutes === settings.voiceLeadTime) {
-                 const key = `${event.id}_before`;
-                 if (!this.notifiedEvents.has(key)) {
-                     this.speak(event.name, settings.voiceLeadTime);
-                     this.notifiedEvents.add(key);
-                     setTimeout(() => this.notifiedEvents.delete(key), 300000);
+            if (settings.voiceLeadTime > 0) {
+                 const targetDiffMs = settings.voiceLeadTime * 60000;
+                 // We want (start - now) approx targetDiffMs
+                 // i.e., abs((start - now) - targetDiffMs) <= 30000
+                 if (Math.abs(diffMs - targetDiffMs) <= 30000) {
+                     const key = `${event.id}_before`;
+                     if (!this.notifiedEvents.has(key)) {
+                         this.speak(event.name, settings.voiceLeadTime);
+                         this.notifiedEvents.add(key);
+                         setTimeout(() => this.notifiedEvents.delete(key), 300000);
+                     }
                  }
             }
         });
@@ -146,10 +163,11 @@ class CalendarApp {
         const resources = Array.from(this.calendarService.getVisible()).map(name => ({ id: name, title: name }));
 
         this.fullCalendar = new FullCalendar.Calendar(calendarEl, {
-            schedulerLicenseKey: 'GPL-My-Project-Is-Open-Source',
-            initialView: 'resourceTimeGridDay',
-            resources: resources,
-            resourceAreaHeaderContent: 'Calendars',
+            // Using standard day view instead of resource view to avoid premium license requirement
+            // schedulerLicenseKey: 'GPL-My-Project-Is-Open-Source',
+            initialView: 'timeGridDay',
+            // resources: resources, // Resources disabled to avoid scheduler dependency
+            // resourceAreaHeaderContent: 'Calendars',
             initialDate: new Date(),
             height: '100%',
             nowIndicator: true,
@@ -175,7 +193,7 @@ class CalendarApp {
             eventResize: this.handleEventModify.bind(this),
             views: {
                 hoursView: {
-                    type: 'resourceTimeGridDay', // Use resource view to show calendars
+                    type: 'timeGridDay', // Use standard day view
                     duration: { days: 1 },
                     buttonText: 'Hours',
                     // The range will be dynamic, but we start regular
@@ -544,7 +562,8 @@ class CalendarApp {
     changeView(view) {
         // If switching to hoursView, fullCalendar treats it as custom view if defined in views
         // We defined 'hoursView' in views config.
-        const newView = view === 'timeGridDay' ? 'resourceTimeGridDay' : view;
+        // We now use standard timeGridDay instead of resourceTimeGridDay
+        const newView = view === 'timeGridDay' ? 'timeGridDay' : view;
         this.fullCalendar.changeView(newView);
     }
     // #endregion
@@ -804,6 +823,12 @@ class CalendarApp {
             this.sync();
         }
         return result;
+    }
+
+    async logoutFromMega() {
+        await this.megaSync.logout();
+        this.setOnlineStatus(false);
+        this.ui.showToast('Logged out from MEGA', 'info');
     }
 
     async sync() {
