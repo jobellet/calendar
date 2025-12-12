@@ -27,6 +27,7 @@ class EventService {
 
         this.historyService.push(this.events);
         event.deleted = true;
+        event.updatedAt = Date.now();
         await this.db.save('events', event);
     }
 
@@ -52,6 +53,12 @@ class EventService {
         if (eventObj.hasImage === undefined) {
             eventObj.hasImage = false;
         }
+
+        const now = Date.now();
+        if (!eventObj.createdAt) {
+            eventObj.createdAt = now;
+        }
+        eventObj.updatedAt = now;
 
         await this.db.save('events', eventObj);
         return eventObj;

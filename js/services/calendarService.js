@@ -41,6 +41,7 @@ class CalendarService {
         const cal = this.calendars.find(c => c.name === name);
         if (cal) {
             cal.deleted = true;
+            cal.updatedAt = Date.now();
             this.visibleCalendars.delete(name);
             await this.db.save('calendars', cal);
         }
@@ -50,7 +51,8 @@ class CalendarService {
         if (this.calendars.find(c => c.name === name)) {
             return null;
         }
-        const cal = { name, isVisible: true };
+        const now = Date.now();
+        const cal = { name, isVisible: true, createdAt: now, updatedAt: now };
         await this.db.save('calendars', cal);
         this.calendars.push(cal);
         this.visibleCalendars.add(name);
@@ -67,6 +69,7 @@ class CalendarService {
         const cal = this.calendars.find(c => c.name === calendarName);
         if (cal) {
             cal.isVisible = isVisible;
+            cal.updatedAt = Date.now();
             await this.db.save('calendars', cal);
         }
     }
