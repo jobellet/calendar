@@ -221,10 +221,45 @@ class UI {
              });
         }
 
-        // Sync button -> open login overlay
+        // Sync button -> open login overlay OR logout
         this.elements.syncBtn.addEventListener('click', () => {
-            this.toggleModal(this.elements.loginOverlay, true);
+            if (this.app.megaSync.isLoggedIn()) {
+                if (confirm('Do you want to logout from MEGA?')) {
+                    this.app.logoutFromMega();
+                } else {
+                     // If they don't want to logout, maybe they want to sync manually?
+                     // Let's trigger sync if they cancel the logout but we should probably separate actions.
+                     // But for now, simple toggle: Logged In -> Click -> Ask Logout. Logged Out -> Click -> Ask Login.
+                     // If confirmed logout, we logout. If cancelled, we do nothing (or maybe sync?).
+                     // Let's add a sync option in the confirm? No, standard confirm is Y/N.
+                     // Let's just ask "Logout?" or "Sync Now?".
+                     // Better: check if online. If online, maybe show a menu or just sync.
+                     // But the user requested "Logout/Cleanup".
+                     // So: If logged in, maybe show a small menu or just Prompt.
+                     // Let's try: Click -> Sync. Long Press -> Logout? Or right click?
+                     // Or just modify the "Sync Section" to have a logout button?
+                     // Let's keep it simple: if logged in, clicking sync button triggers Sync.
+                     // We need a separate Logout button or a way to logout.
+                     // I will add a Logout button to the UI dynamically or in HTML.
+
+                     // Actually, I'll modify this handler to:
+                     // If not logged in -> Open Login Overlay.
+                     // If logged in -> Trigger Sync.
+                     // AND I will add a separate Logout button in the HTML or inject it.
+                     this.app.sync();
+                }
+            } else {
+                this.toggleModal(this.elements.loginOverlay, true);
+            }
         });
+
+        // Add Logout button logic if it exists (I'll add it to HTML next)
+        const logoutBtn = document.getElementById('logout-btn');
+        if (logoutBtn) {
+            logoutBtn.addEventListener('click', () => {
+                 this.app.logoutFromMega();
+            });
+        }
 
         // Login cancel
         if (this.elements.loginCancelBtn) {
@@ -1084,9 +1119,15 @@ class UI {
         if (online) {
             this.elements.syncBtn.classList.remove('status-offline');
             this.elements.syncBtn.classList.add('status-online');
+            // Show explicit logout button
+            const logoutBtn = document.getElementById('logout-btn');
+            if (logoutBtn) logoutBtn.classList.remove('hidden');
         } else {
             this.elements.syncBtn.classList.remove('status-online');
             this.elements.syncBtn.classList.add('status-offline');
+            // Hide explicit logout button
+            const logoutBtn = document.getElementById('logout-btn');
+            if (logoutBtn) logoutBtn.classList.add('hidden');
         }
     }
 
