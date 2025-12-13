@@ -7,6 +7,7 @@ class EventService {
 
     async load() {
         this.events = await this.db.getAll('events');
+        await this._migrateLegacyAndDuplicateIds();
         return this.events;
     }
 
@@ -41,7 +42,10 @@ class EventService {
         } else {
             // Create
             eventObj = this._createEmptyEvent();
-            eventObj.id = this._generateId(eventData.calendar, eventData.name, eventData.start);
+            eventObj.id = this._generateUniqueId();
+            while (this.find(eventObj.id)) {
+                eventObj.id = this._generateUniqueId();
+            }
             this.events.push(eventObj);
         }
 
@@ -110,13 +114,50 @@ class EventService {
         };
     }
 
-    _generateId(calendar, name, startISO) {
-        const base = `${calendar}|${name}|${startISO}`;
-        let hash = 0;
-        for (let i = 0; i < base.length; i++) {
-            hash = ((hash << 5) - hash) + base.charCodeAt(i);
-            hash |= 0;
+    _generateUniqueId() {
+        const randomPart = (Math.random().toString(16).slice(2) + Math.random().toString(16).slice(2)).slice(0, 16);
+
+        if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+            return `ev_${crypto.randomUUID()}`;
         }
-        return `ev_${Math.abs(hash)}`;
+
+        const timestampPart = Date.now().toString(16);
+        return `ev_${timestampPart}_${randomPart}`;
+    }
+
+    async _migrateLegacyAndDuplicateIds() {
+        const seenIds = new Set();
+        const updates = [];
+
+        for (const event of this.events) {
+            const originalId = event.id;
+            let needsUpdate = false;
+
+            if (!event.id || this._isLegacyId(event.id) || seenIds.has(event.id)) {
+                let newId = this._generateUniqueId();
+                while (seenIds.has(newId)) {
+                    newId = this._generateUniqueId();
+                }
+                event.id = newId;
+                needsUpdate = true;
+            }
+
+            seenIds.add(event.id);
+
+            if (needsUpdate) {
+                updates.push({ event, originalId });
+            }
+        }
+
+        for (const { event, originalId } of updates) {
+            if (originalId && originalId !== event.id) {
+                await this.db.delete('events', originalId);
+            }
+            await this.db.save('events', event);
+        }
+    }
+
+    _isLegacyId(id) {
+        return /^ev_\d+$/.test(id);
     }
 }
