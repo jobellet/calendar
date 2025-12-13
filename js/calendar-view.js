@@ -22,6 +22,10 @@ class CalendarView {
         this.selectedEventId = null;
 
         this.dragState = null;
+
+        // Current time indicator state
+        this.currentTimeLine = null;
+        this.currentTimeTimer = null;
     }
 
     setView(viewType) {
@@ -73,6 +77,7 @@ class CalendarView {
     }
 
     render() {
+        this.clearCurrentTimeIndicator();
         this.element.innerHTML = '';
         this.updateTitle();
 
@@ -591,6 +596,7 @@ class CalendarView {
         });
 
         content.appendChild(eventsLayer);
+        this.renderCurrentTimeLine(content, days, startH, endH);
         body.appendChild(content);
         container.appendChild(body);
 
@@ -602,6 +608,54 @@ class CalendarView {
         }
 
         return container;
+    }
+
+    renderCurrentTimeLine(content, days, startH, endH) {
+        const now = new Date();
+        const todayIdx = days.findIndex(day => this.isSameDay(day, now));
+        if (todayIdx === -1) return;
+
+        const minutes = now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60;
+        if (minutes < startH * 60 || minutes > endH * 60) return;
+
+        const offsetMin = startH * 60;
+        const positionHours = (minutes - offsetMin) / 60;
+
+        this.currentTimeLine = document.createElement('div');
+        this.currentTimeLine.className = 'current-time-line';
+        this.currentTimeLine.style.top = `calc(${positionHours} * var(--slot-height, 50px))`;
+
+        content.appendChild(this.currentTimeLine);
+
+        const updatePosition = () => {
+            const nowDate = new Date();
+            const todaysIndex = days.findIndex(day => this.isSameDay(day, nowDate));
+            const currentMinutes = nowDate.getHours() * 60 + nowDate.getMinutes() + nowDate.getSeconds() / 60;
+
+            if (todaysIndex === -1 || currentMinutes < startH * 60 || currentMinutes > endH * 60) {
+                this.currentTimeLine.style.display = 'none';
+                return;
+            }
+
+            this.currentTimeLine.style.display = 'block';
+            const viewPositionHours = (currentMinutes - startH * 60) / 60;
+            this.currentTimeLine.style.top = `calc(${viewPositionHours} * var(--slot-height, 50px))`;
+        };
+
+        updatePosition();
+        this.currentTimeTimer = setInterval(updatePosition, 60000);
+    }
+
+    clearCurrentTimeIndicator() {
+        if (this.currentTimeTimer) {
+            clearInterval(this.currentTimeTimer);
+            this.currentTimeTimer = null;
+        }
+
+        if (this.currentTimeLine && this.currentTimeLine.parentElement) {
+            this.currentTimeLine.parentElement.removeChild(this.currentTimeLine);
+        }
+        this.currentTimeLine = null;
     }
 
     createEventElement(ev, type) {

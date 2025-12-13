@@ -302,3 +302,25 @@
     padding: 4px; /* More padding for larger events */
     background: linear-gradient(to bottom, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0) 100%); /* optional gradient for text readability */
 }
+
+.current-time-line {
+    position: absolute;
+    left: 50px;
+    width: calc(100% - 50px);
+    height: 2px;
+    background: #ff4d4f;
+    z-index: 5;
+    pointer-events: none;
+}
+
+.current-time-line::before {
+    content: '';
+    position: absolute;
+    left: -6px;
+    top: -4px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #ff4d4f;
+    box-shadow: 0 0 6px rgba(255, 77, 79, 0.6);
+}
