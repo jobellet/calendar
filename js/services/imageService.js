@@ -19,7 +19,7 @@ class ImageService {
         }
     }
 
-    findEventImage(event) {
+    findEventImage(event, eventService = null) {
         if (!event) return null;
 
         // Priority 0: Edited event image
@@ -30,15 +30,46 @@ class ImageService {
         const eventIdMatch = this.images.find(img => img.id === `event:${event.id}`);
         if (eventIdMatch && !eventIdMatch.deleted) return eventIdMatch;
 
-        // Priority 2: Category image
         const normalizedName = (event.name || '').trim().toLowerCase();
-        const categoryMatches = this.images.filter(img => img.category && img.category === normalizedName);
+        if (!normalizedName) return null;
+
+        // Priority 2: Category image
+        // Updated to search for category name across all calendars
+        const categoryMatches = this.images.filter(img => img.category && img.category === normalizedName && !img.deleted);
+
+        // 2a. Match in same calendar
         let match = categoryMatches.find(img => img.calendar === event.calendar);
+        // 2b. Match in 'all' calendar
         if (!match) {
             match = categoryMatches.find(img => img.calendar === 'all');
         }
+        // 2c. Match in ANY calendar (Fallback)
+        if (!match && categoryMatches.length > 0) {
+            match = categoryMatches[0];
+        }
+
         if (match) {
             return match;
+        }
+
+        // Priority 3: Image from another event with the same name
+        // We need access to other events to do this.
+        if (eventService) {
+            // Find other events with the same name
+            const sameNameEvents = eventService.getAll().filter(e =>
+                !e.deleted &&
+                e.id !== event.id &&
+                (e.name || '').trim().toLowerCase() === normalizedName
+            );
+
+            for (const otherEvent of sameNameEvents) {
+                // Check if this other event has an image (edited or specific)
+                const otherEditedImg = this.images.find(img => img.id === `event:${otherEvent.id}_edited` && !img.deleted);
+                if (otherEditedImg) return otherEditedImg;
+
+                const otherImg = this.images.find(img => img.id === `event:${otherEvent.id}` && !img.deleted);
+                if (otherImg) return otherImg;
+            }
         }
 
         return null;
@@ -79,7 +110,6 @@ class ImageService {
             cropY: crop.cropY || 50,
             averageColor: metadata.averageColor,
         };
-        await this._save(imageEntry);
         await this._save(imageEntry);
     }
 

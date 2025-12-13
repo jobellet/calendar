@@ -644,7 +644,7 @@ class CalendarView {
         if (type === 'month') el.classList.add('month-event');
         else el.classList.add('time-event');
 
-        const image = this.imageService.findEventImage(ev);
+        const image = this.imageService.findEventImage(ev, this.eventService);
 
         const content = document.createElement('div');
         content.className = 'event-content';
