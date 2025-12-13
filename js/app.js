@@ -171,7 +171,7 @@ class CalendarApp {
         }
     }
 
-    handleDateClick(date) {
+    handleDateClick(date, calendarName) {
         if (this.clipboard) {
              // Paste support could be added here
         }
@@ -184,7 +184,7 @@ class CalendarApp {
         } else {
              const start = new Date(date);
              const end = new Date(start.getTime() + 60 * 60000);
-             this.openEventCreationFromRange(start, end);
+             this.openEventCreationFromRange(start, end, calendarName);
         }
     }
 
