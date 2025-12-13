@@ -78,6 +78,11 @@ class UI {
             leftSidebar: document.getElementById('left-sidebar'),
             closeSidebarBtn: document.getElementById('close-sidebar-btn'),
             fabAddEvent: document.querySelector('.fab-add-event'),
+            // Add Calendar Modal
+            addCalendarModal: document.getElementById('add-calendar-modal'),
+            closeAddCalendarModalBtn: document.getElementById('close-add-calendar-modal-btn'),
+            addCalendarForm: document.getElementById('add-calendar-form'),
+            newCalendarName: document.getElementById('new-calendar-name'),
         };
     }
 
@@ -150,6 +155,23 @@ class UI {
                 this.app.changeView(view);
             }
         });
+
+        // Hours View Controls
+        if (this.elements.hoursUpBtn) {
+            this.elements.hoursUpBtn.addEventListener('click', () => {
+                 this.app.shiftHoursView(-30);
+            });
+        }
+        if (this.elements.hoursDownBtn) {
+            this.elements.hoursDownBtn.addEventListener('click', () => {
+                 this.app.shiftHoursView(30);
+            });
+        }
+        if (this.elements.hoursResetBtn) {
+            this.elements.hoursResetBtn.addEventListener('click', () => {
+                 this.app.resetHoursView();
+            });
+        }
 
         window.addEventListener('keydown', (e) => {
             const isUndo = (e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z');
@@ -225,16 +247,69 @@ class UI {
         }
 
         this.elements.addCalendarBtn.addEventListener('click', () => {
-            const name = window.prompt('New calendar name:');
-            if (name && name.trim()) {
-                this.app.addCalendar(name.trim());
-            }
+            if (this.elements.newCalendarName) this.elements.newCalendarName.value = '';
+            this.toggleModal(this.elements.addCalendarModal, true);
+            setTimeout(() => this.elements.newCalendarName.focus(), 100);
         });
+
+        if (this.elements.closeAddCalendarModalBtn) {
+            this.elements.closeAddCalendarModalBtn.addEventListener('click', () => {
+                this.toggleModal(this.elements.addCalendarModal, false);
+            });
+        }
+
+        if (this.elements.addCalendarForm) {
+            this.elements.addCalendarForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const name = this.elements.newCalendarName.value.trim();
+                if (name) {
+                    this.app.addCalendar(name);
+                    this.toggleModal(this.elements.addCalendarModal, false);
+                }
+            });
+        }
 
         this.elements.eventForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             await this.app.saveEventFromForm();
             this.toggleModal(this.elements.eventOverlay, false);
+        });
+
+        // Close on Esc
+        window.addEventListener('keydown', (e) => {
+             if (e.key === 'Escape') {
+                 // Close any open modal
+                 if (this.elements.eventOverlay.classList.contains('visible')) {
+                     this.toggleModal(this.elements.eventOverlay, false);
+                 } else if (this.elements.settingsPanel && this.elements.settingsPanel.classList.contains('visible')) {
+                     this.toggleModal(this.elements.settingsPanel, false);
+                 } else if (this.elements.imageManagementPanel && this.elements.imageManagementPanel.classList.contains('visible')) {
+                     this.toggleModal(this.elements.imageManagementPanel, false);
+                 } else if (this.elements.addCalendarModal && this.elements.addCalendarModal.classList.contains('visible')) {
+                     this.toggleModal(this.elements.addCalendarModal, false);
+                 } else if (this.elements.sidebarOverlay && this.elements.sidebarOverlay.classList.contains('visible')) {
+                     this.elements.leftSidebar.classList.remove('open');
+                     this.elements.sidebarOverlay.classList.remove('visible');
+                 }
+             }
+             // Ctrl+S to save
+             if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) {
+                 if (this.elements.eventOverlay.classList.contains('visible')) {
+                     e.preventDefault();
+                     this.elements.eventForm.dispatchEvent(new Event('submit'));
+                 }
+             }
+        });
+
+        // Close on outside click
+        [this.elements.eventOverlay, this.elements.settingsPanel, this.elements.imageManagementPanel, this.elements.addCalendarModal].forEach(modal => {
+             if (modal) {
+                 modal.addEventListener('mousedown', (e) => {
+                     if (e.target === modal) {
+                         this.toggleModal(modal, false);
+                     }
+                 });
+             }
         });
 
         if (this.elements.eventRecurrence) {

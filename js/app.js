@@ -138,6 +138,36 @@ class CalendarApp {
                 }
             }
 
+            // Global shortcuts
+            if (e.key === 'm' || e.key === 'M') {
+                 this.changeView('dayGridMonth');
+                 this.ui.setActiveViewButton(this.ui.elements.viewSelector.querySelector('button[data-view="dayGridMonth"]'));
+            } else if (e.key === 'w' || e.key === 'W') {
+                 this.changeView('timeGridWeek');
+                 this.ui.setActiveViewButton(this.ui.elements.viewSelector.querySelector('button[data-view="timeGridWeek"]'));
+            } else if (e.key === 'd' || e.key === 'D') {
+                 this.changeView('timeGridDay');
+                 this.ui.setActiveViewButton(this.ui.elements.viewSelector.querySelector('button[data-view="timeGridDay"]'));
+            } else if (e.key === 'h' || e.key === 'H') {
+                 this.changeView('hoursView');
+                 this.ui.setActiveViewButton(this.ui.elements.viewSelector.querySelector('button[data-view="hoursView"]'));
+            } else if (e.key === 't' || e.key === 'T') {
+                 this.calendarView.today();
+            } else if (e.key === 'n' || e.key === 'N') {
+                 // Create new event at current time rounded to next 30 min
+                 const now = new Date();
+                 let minutes = Math.ceil(now.getMinutes() / 30) * 30;
+                 let hours = now.getHours();
+                 if (minutes === 60) { minutes = 0; hours++; }
+                 this.openEventCreationAt(hours, minutes);
+            } else if (e.key === 's' || e.key === 'S') {
+                 // Settings
+                 if (this.ui.elements.settingsBtn) this.ui.elements.settingsBtn.click();
+            } else if (e.key === 'i' || e.key === 'I') {
+                 // Images
+                 if (this.ui.elements.openImagePanelBtn) this.ui.elements.openImagePanelBtn.click();
+            }
+
             switch (e.key) {
                 case 'ArrowLeft':
                     this.calendarView.prev();
@@ -172,6 +202,7 @@ class CalendarApp {
 
         this.calendarView.onEventClick = this.handleEventClick.bind(this);
         this.calendarView.onDateClick = this.handleDateClick.bind(this);
+        this.calendarView.onRangeSelect = this.handleRangeSelect.bind(this); // Bind range select
         this.calendarView.onEventAction = this.handleEventAction.bind(this);
 
         document.getElementById('prev-btn').onclick = () => this.calendarView.prev();
@@ -245,7 +276,8 @@ class CalendarApp {
 
     handleDateClick(date, calendarName) {
         if (this.clipboard) {
-             // Paste support could be added here
+             this.pasteEvent(date, calendarName);
+             return;
         }
 
         if (this.calendarView.viewType === 'dayGridMonth') {
@@ -254,10 +286,15 @@ class CalendarApp {
              const dayBtn = this.ui.elements.viewSelector.querySelector('button[data-view="timeGridDay"]');
              if (dayBtn) this.ui.setActiveViewButton(dayBtn);
         } else {
+             // Single click in time grid: open creation with 1 hour duration
              const start = new Date(date);
              const end = new Date(start.getTime() + 60 * 60000);
              this.openEventCreationFromRange(start, end, calendarName);
         }
+    }
+
+    handleRangeSelect(start, end, calendarName) {
+        this.openEventCreationFromRange(start, end, calendarName);
     }
 
     changeView(view) {
@@ -399,6 +436,17 @@ class CalendarApp {
     async saveEventFromForm() {
         const formData = this.ui.getEventFormData();
         if (!formData) return;
+
+        // Check for overlaps (simple check)
+        const overlaps = this.eventService.checkOverlap(formData.start, formData.end, formData.calendars, formData.id);
+        if (overlaps.length > 0) {
+            const msg = `Warning: This event overlaps with ${overlaps.length} existing event(s):\n` +
+                        overlaps.map(e => `- ${e.name} (${new Date(e.start).toLocaleTimeString()} - ${new Date(e.end).toLocaleTimeString()})`).join('\n') +
+                        `\n\nSave anyway?`;
+            if (!confirm(msg)) {
+                return;
+            }
+        }
 
         const calendars = formData.calendars;
         const originalId = formData.id;

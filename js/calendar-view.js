@@ -366,7 +366,10 @@ class CalendarView {
         gutter.className = 'time-gutter-header';
         header.appendChild(gutter);
 
-        const start = dayCount === 1 ? new Date(this.currentDate) : this.getVisibleRange().start;
+        const start = this.getVisibleRange().start;
+        // Ensure start time is 00:00:00 to avoid offset issues
+        start.setHours(0, 0, 0, 0);
+
         const days = [];
         for(let i=0; i<dayCount; i++) {
             const d = new Date(start);
@@ -448,10 +451,107 @@ class CalendarView {
                      }
 
                      const calName = visibleCalendars[c];
-                     cell.onclick = () => {
+                     // Drag to create handling
+                     const startDrag = (e) => {
+                         if (e.button !== 0) return; // Only left click
+                         e.stopPropagation();
+
+                         const startCell = cell;
+                         let endCell = cell;
+
+                         // Highlight logic or immediate create?
+                         // Ideally we want to drag to select a range.
+                         // For now, let's just make the click robust by checking the target.
+
+                         // But the user specifically asked for "Enable click‑and‑drag on the time grid".
+                         // I will implement a basic version where we track mouse up.
+                     };
+
+                     // Robust Click Handler (replacing simple onclick)
+                     cell.onmousedown = (e) => {
+                         if (e.target !== cell) return;
+
+                         this.isDragging = true;
+                         this.dragStartCell = cell;
+                         this.dragStartCal = calName;
+
                          const date = new Date(days[d]);
                          date.setHours(h);
-                         if (this.onDateClick) this.onDateClick(date, calName);
+                         date.setMinutes(0, 0, 0);
+
+                         // Snap to 15 min
+                         const rect = cell.getBoundingClientRect();
+                         const y = e.clientY - rect.top;
+                         const ratio = Math.max(0, Math.min(1, y / rect.height));
+                         const minutes = Math.floor(ratio * 4) * 15;
+                         date.setMinutes(minutes);
+
+                         this.dragStartDate = date;
+                     };
+
+                     cell.onmouseup = (e) => {
+                         if (!this.isDragging) return;
+                         this.isDragging = false;
+
+                         const endDate = new Date(days[d]);
+                         endDate.setHours(h);
+                         endDate.setMinutes(0, 0, 0);
+
+                         // Snap to 15 min
+                         const rect = cell.getBoundingClientRect();
+                         const y = e.clientY - rect.top;
+                         const ratio = Math.max(0, Math.min(1, y / rect.height));
+                         // Use round for end date to allow selecting end of slot?
+                         // Or floor to pick slot?
+                         // If I drag to bottom of cell, I expect :45 or next :00?
+                         // Let's stick to floor 15m intervals for simplicity.
+                         const minutes = Math.floor(ratio * 4) * 15;
+                         endDate.setMinutes(minutes);
+
+                         // Check if we are on the same calendar column
+                         if (this.dragStartCal !== calName) return;
+
+                         // Determine range
+                         let s = new Date(this.dragStartDate);
+                         let e_ = new Date(endDate);
+
+                         if (s > e_) {
+                             const temp = s; s = e_; e_ = temp;
+                         }
+
+                         // If start == end (single click), default to 1 hour
+                         if (s.getTime() === e_.getTime()) {
+                             e_.setHours(e_.getHours() + 1);
+                         }
+
+                         // Ensure end is at least start + 15m?
+                         // If I dragged from 10:00 to 10:15 (different slots), range is valid.
+                         // But if I dragged 10:00 to 10:00, it falls into previous block.
+
+                         // If user dragged 'down', e_ is the START of the selected slot.
+                         // We probably want the event to END after that slot.
+                         // E.g. Click 10:00, Drag to 10:45.
+                         // s=10:00, e_=10:45.
+                         // Do we want [10:00, 10:45] (45min) or [10:00, 11:00] (covering the 10:45 slot)?
+                         // Usually dragging defines the END time.
+                         // If I release on 10:45 slot, maybe I mean "include this slot"?
+                         // Let's assume the user selects the start time of the end slot.
+                         // So [10:00, 10:45] means 45 min duration.
+
+                         if (s.getTime() === e_.getTime()) {
+                             // Single click
+                             if (this.onDateClick) this.onDateClick(s, calName);
+                             else if (this.onRangeSelect) {
+                                 const endDefault = new Date(s);
+                                 endDefault.setHours(endDefault.getHours() + 1);
+                                 this.onRangeSelect(s, endDefault, calName);
+                             }
+                         } else {
+                             // Range drag
+                             if (this.onRangeSelect) {
+                                 this.onRangeSelect(s, e_, calName);
+                             }
+                         }
                      };
 
                      dayWrapper.appendChild(cell);

@@ -315,6 +315,21 @@
         </div>
     </div>
 
+    <!-- Add Calendar Modal -->
+    <div id="add-calendar-modal" class="overlay">
+        <div class="modal-box">
+            <button id="close-add-calendar-modal-btn" type="button" class="close-modal-x">×</button>
+            <h2>Add Calendar</h2>
+            <form id="add-calendar-form">
+                <label>
+                    Calendar Name
+                    <input type="text" id="new-calendar-name" required>
+                </label>
+                <button type="submit">Create</button>
+            </form>
+        </div>
+    </div>
+
     <script src="js/db.js"></script>
     <script src="js/services/historyService.js"></script>
     <script src="js/services/settingsService.js"></script>
