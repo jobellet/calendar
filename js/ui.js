@@ -574,7 +574,7 @@ class UI {
         this.elements.eventName.value = eventData?.name || '';
 
         if (this.app && eventData && eventData.id) {
-            const imageEntry = this.app.imageService.findEventImage(eventData);
+            const imageEntry = this.app.imageService.findEventImage(eventData, this.app.eventService);
             if (imageEntry) {
                 this.elements.eventImagePreview.src = imageEntry.url;
                 this.elements.eventImagePreview.style.display = 'block';
