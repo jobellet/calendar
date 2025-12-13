@@ -117,7 +117,8 @@
                 <div id="voice-settings-group">
                     <label>
                         Notify before start (minutes)
-                        <input type="number" id="settings-voice-lead-time" min="1" max="1440" value="10">
+                        <input type="number" id="settings-voice-lead-time" min="0" max="1440" value="10">
+                        <div id="settings-voice-lead-time-error" class="field-error" aria-live="polite"></div>
                     </label>
 
                     <label class="checkbox-label">

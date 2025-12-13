@@ -449,6 +449,12 @@ select:focus {
     box-shadow: 0 0 0 4px var(--primary-color-light);
 }
 
+.field-error {
+    color: #d32f2f;
+    font-size: 12px;
+    min-height: 16px;
+}
+
 /* Buttons in forms */
 form button,
 .modal-box button {
