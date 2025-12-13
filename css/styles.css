@@ -653,11 +653,24 @@ button[type="button"].cancel-btn:hover {
     /* Main Content adjustments */
     #main-content {
         padding: 0;
+        padding-top: 70px;
         padding-right: 30px;
         /* Space for the right strip */
         grid-column: 1;
         flex: 1;
         overflow: hidden;
+    }
+
+    /* Stack calendar header on mobile */
+    .calendar-header {
+        flex-direction: column-reverse;
+        gap: 8px;
+        padding: 10px 10px;
+    }
+
+    .calendar-nav {
+        width: 100%;
+        justify-content: center;
     }
 
     .close-sidebar-btn {
