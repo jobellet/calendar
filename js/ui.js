@@ -33,6 +33,7 @@ class UI {
             settingsLanguage: document.getElementById('settings-language'),
             settingsVoiceEnabled: document.getElementById('settings-voice-enabled'),
             settingsVoiceLeadTime: document.getElementById('settings-voice-lead-time'),
+            settingsVoiceLeadTimeError: document.getElementById('settings-voice-lead-time-error'),
             settingsVoiceAtStart: document.getElementById('settings-voice-at-start'),
             voiceSettingsGroup: document.getElementById('voice-settings-group'),
             // Login overlay
@@ -197,8 +198,10 @@ class UI {
         if (this.elements.settingsForm) {
             this.elements.settingsForm.addEventListener('submit', (e) => {
                 e.preventDefault();
-                this.saveSettings();
-                this.toggleModal(this.elements.settingsPanel, false);
+                const saved = this.saveSettings();
+                if (saved) {
+                    this.toggleModal(this.elements.settingsPanel, false);
+                }
             });
         }
 
@@ -206,6 +209,12 @@ class UI {
              this.elements.settingsVoiceEnabled.addEventListener('change', () => {
                  this.toggleVoiceSettings();
              });
+        }
+
+        if (this.elements.settingsVoiceLeadTime) {
+            this.elements.settingsVoiceLeadTime.addEventListener('input', () => {
+                this.clearLeadTimeError();
+            });
         }
 
         this.elements.syncBtn.addEventListener('click', () => {
@@ -516,19 +525,50 @@ class UI {
         if (this.elements.settingsVoiceEnabled) this.elements.settingsVoiceEnabled.checked = settings.voiceEnabled;
         if (this.elements.settingsVoiceLeadTime) this.elements.settingsVoiceLeadTime.value = settings.voiceLeadTime;
         if (this.elements.settingsVoiceAtStart) this.elements.settingsVoiceAtStart.checked = settings.voiceAtStart;
+        this.clearLeadTimeError();
         this.toggleVoiceSettings();
     }
 
     saveSettings() {
+        this.clearLeadTimeError();
+        const bounds = this.app.settingsService.getLeadTimeBounds();
+        const rawLeadTime = this.elements.settingsVoiceLeadTime?.value;
+        const parsedLeadTime = Number(rawLeadTime);
+
+        if (!Number.isFinite(parsedLeadTime)) {
+            this.showLeadTimeError(`Enter a number between ${bounds.min} and ${bounds.max} minutes.`);
+            return false;
+        }
+
+        const sanitizedLeadTime = this.app.settingsService.sanitizeLeadTime(parsedLeadTime);
+        if (this.elements.settingsVoiceLeadTime) {
+            this.elements.settingsVoiceLeadTime.value = sanitizedLeadTime;
+        }
+
+        if (sanitizedLeadTime !== parsedLeadTime) {
+            this.showLeadTimeError(`Lead time adjusted to ${sanitizedLeadTime} minutes to stay between ${bounds.min} and ${bounds.max}.`);
+        }
+
         const newSettings = {
             language: this.elements.settingsLanguage.value,
             voiceEnabled: this.elements.settingsVoiceEnabled.checked,
-            voiceLeadTime: parseInt(this.elements.settingsVoiceLeadTime.value, 10),
+            voiceLeadTime: sanitizedLeadTime,
             voiceAtStart: this.elements.settingsVoiceAtStart.checked
         };
         this.app.settingsService.save(newSettings);
         this.showToast('Settings saved', 'success');
         this.app.restartNotificationLoop();
+        return true;
+    }
+
+    showLeadTimeError(message) {
+        if (!this.elements.settingsVoiceLeadTimeError) return;
+        this.elements.settingsVoiceLeadTimeError.textContent = message;
+    }
+
+    clearLeadTimeError() {
+        if (!this.elements.settingsVoiceLeadTimeError) return;
+        this.elements.settingsVoiceLeadTimeError.textContent = '';
     }
 
     toggleVoiceSettings() {

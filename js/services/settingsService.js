@@ -1,5 +1,6 @@
 class SettingsService {
     constructor() {
+        this.leadTimeBounds = { min: 0, max: 1440, default: 10 };
         this.settings = this.load();
         this.translations = {
             'en-US': {
@@ -27,11 +28,12 @@ class SettingsService {
 
     load() {
         const stored = localStorage.getItem('calendar_settings');
-        return stored ? JSON.parse(stored) : this.getDefaults();
+        const parsed = stored ? JSON.parse(stored) : {};
+        return this.applyDefaults(parsed);
     }
 
     save(newSettings) {
-        this.settings = { ...this.settings, ...newSettings };
+        this.settings = this.applyDefaults({ ...this.settings, ...newSettings });
         localStorage.setItem('calendar_settings', JSON.stringify(this.settings));
     }
 
@@ -39,9 +41,26 @@ class SettingsService {
         return {
             language: 'en-US',
             voiceEnabled: false,
-            voiceLeadTime: 10,
+            voiceLeadTime: this.leadTimeBounds.default,
             voiceAtStart: true
         };
+    }
+
+    applyDefaults(partialSettings) {
+        const merged = { ...this.getDefaults(), ...partialSettings };
+        merged.voiceLeadTime = this.sanitizeLeadTime(merged.voiceLeadTime);
+        return merged;
+    }
+
+    sanitizeLeadTime(value) {
+        const numeric = Number(value);
+        if (!Number.isFinite(numeric)) return this.leadTimeBounds.default;
+        const clamped = Math.min(Math.max(numeric, this.leadTimeBounds.min), this.leadTimeBounds.max);
+        return Math.round(clamped);
+    }
+
+    getLeadTimeBounds() {
+        return { ...this.leadTimeBounds };
     }
 
     get() {
