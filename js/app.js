@@ -1,6 +1,11 @@
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     const app = new CalendarApp();
-    app.init();
+    try {
+        await app.init();
+    } catch (e) {
+        console.error(e);
+        alert('Failed to initialize app: ' + e.message);
+    }
 });
 
 class CalendarApp {

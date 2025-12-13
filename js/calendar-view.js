@@ -502,7 +502,14 @@ class CalendarView {
 
         const title = document.createElement('span');
         title.className = 'event-title';
-        title.textContent = ev.name;
+
+        // Format time (HH:MM)
+        const date = new Date(ev.start);
+        const hours = date.getHours().toString().padStart(2, '0');
+        const minutes = date.getMinutes().toString().padStart(2, '0');
+        const timeStr = `${hours}:${minutes}`;
+
+        title.textContent = `${timeStr} ${ev.name}`;
         content.appendChild(title);
 
         el.appendChild(content);
