@@ -14,11 +14,14 @@ class CalendarView {
         this.onRangeSelect = null; // Drag selection
         this.onEventSelected = null; // When event is selected via long press
         this.onEventAction = null; // Action triggered from event button
+        this.onEventChange = null; // When event is modified (e.g. dragged)
 
         // View State
         this.startHour = 0;
         this.endHour = 24;
         this.selectedEventId = null;
+
+        this.dragState = null;
     }
 
     setView(viewType) {
@@ -300,6 +303,8 @@ class CalendarView {
             if (cellDate.getMonth() !== this.currentDate.getMonth()) {
                 cell.classList.add('other-month');
             }
+            // Add date to dataset for drop handling
+            cell.dataset.date = cellDate.toISOString();
 
             const dateNum = document.createElement('div');
             dateNum.className = 'date-number';
@@ -445,27 +450,14 @@ class CalendarView {
                      cell.className = 'time-cell';
                      cell.dataset.date = days[d].toISOString();
                      cell.dataset.hour = h;
+                     // Add calendar name to dataset for drop target identification
+                     cell.dataset.calendar = visibleCalendars[c];
                      cell.style.flex = '1';
                      if (c < subColCount - 1) {
                          cell.style.borderRight = '1px solid rgba(0,0,0,0.02)';
                      }
 
                      const calName = visibleCalendars[c];
-                     // Drag to create handling
-                     const startDrag = (e) => {
-                         if (e.button !== 0) return; // Only left click
-                         e.stopPropagation();
-
-                         const startCell = cell;
-                         let endCell = cell;
-
-                         // Highlight logic or immediate create?
-                         // Ideally we want to drag to select a range.
-                         // For now, let's just make the click robust by checking the target.
-
-                         // But the user specifically asked for "Enable click‑and‑drag on the time grid".
-                         // I will implement a basic version where we track mouse up.
-                     };
 
                      // Robust Click Handler (replacing simple onclick)
                      cell.onmousedown = (e) => {
@@ -501,10 +493,6 @@ class CalendarView {
                          const rect = cell.getBoundingClientRect();
                          const y = e.clientY - rect.top;
                          const ratio = Math.max(0, Math.min(1, y / rect.height));
-                         // Use round for end date to allow selecting end of slot?
-                         // Or floor to pick slot?
-                         // If I drag to bottom of cell, I expect :45 or next :00?
-                         // Let's stick to floor 15m intervals for simplicity.
                          const minutes = Math.floor(ratio * 4) * 15;
                          endDate.setMinutes(minutes);
 
@@ -523,20 +511,6 @@ class CalendarView {
                          if (s.getTime() === e_.getTime()) {
                              e_.setHours(e_.getHours() + 1);
                          }
-
-                         // Ensure end is at least start + 15m?
-                         // If I dragged from 10:00 to 10:15 (different slots), range is valid.
-                         // But if I dragged 10:00 to 10:00, it falls into previous block.
-
-                         // If user dragged 'down', e_ is the START of the selected slot.
-                         // We probably want the event to END after that slot.
-                         // E.g. Click 10:00, Drag to 10:45.
-                         // s=10:00, e_=10:45.
-                         // Do we want [10:00, 10:45] (45min) or [10:00, 11:00] (covering the 10:45 slot)?
-                         // Usually dragging defines the END time.
-                         // If I release on 10:45 slot, maybe I mean "include this slot"?
-                         // Let's assume the user selects the start time of the end slot.
-                         // So [10:00, 10:45] means 45 min duration.
 
                          if (s.getTime() === e_.getTime()) {
                              // Single click
@@ -690,6 +664,11 @@ class CalendarView {
                 return btn;
             };
 
+            // Edit
+            actions.appendChild(createBtn('✎', () => {
+                if (this.onEventClick) this.onEventClick({ event: { id: eventId } });
+            }, 'Edit Event'));
+
             // Up (Earlier)
             actions.appendChild(createBtn('▲', () => this.triggerAction('moveTime', eventId, -15), 'Move 15m earlier'));
             // Down (Later)
@@ -704,40 +683,194 @@ class CalendarView {
             el.appendChild(actions);
         }
 
-        // Long press logic
+        // Interaction Logic
         let pressTimer;
-        const startPress = (e) => {
-            // e.stopPropagation();
+        let isLongPress = false;
+        let startX, startY;
+
+        const handleStart = (e) => {
+            if (e.target.closest('.event-actions')) return;
+
+            isLongPress = false;
+            // Store coordinates
+            if (e.type === 'touchstart') {
+                startX = e.touches[0].clientX;
+                startY = e.touches[0].clientY;
+            } else {
+                startX = e.clientX;
+                startY = e.clientY;
+            }
+
             pressTimer = setTimeout(() => {
-                this.selectedEventId = eventId;
-                if (this.onEventSelected) this.onEventSelected(eventId);
-                this.render(); // Re-render to show selection
-                el.dataset.longPressed = 'true';
+                isLongPress = true;
+                this.startEventDrag(ev, el, e, startX, startY);
             }, 500); // 500ms long press
         };
-        const cancelPress = () => {
+
+        const handleMove = (e) => {
+             const cx = e.touches ? e.touches[0].clientX : e.clientX;
+             const cy = e.touches ? e.touches[0].clientY : e.clientY;
+             // If moved significantly, cancel long press (allow scrolling)
+             if (Math.abs(cx - startX) > 10 || Math.abs(cy - startY) > 10) {
+                 clearTimeout(pressTimer);
+             }
+        };
+
+        const handleEnd = (e) => {
             clearTimeout(pressTimer);
-        };
+            if (!isLongPress && !this.dragState) {
+                 if (e.target.closest('.event-actions')) return;
 
-        el.addEventListener('mousedown', startPress);
-        el.addEventListener('touchstart', startPress, {passive: true});
-        el.addEventListener('mouseup', cancelPress);
-        el.addEventListener('mouseleave', cancelPress);
-        el.addEventListener('touchend', cancelPress);
-        el.addEventListener('touchcancel', cancelPress);
-
-        el.onclick = (e) => {
-            e.stopPropagation();
-            if (el.dataset.longPressed === 'true') {
-                delete el.dataset.longPressed;
-                return;
+                 // Select Event
+                 if (this.selectedEventId !== eventId) {
+                     this.selectedEventId = eventId;
+                     if (this.onEventSelected) this.onEventSelected(eventId);
+                     this.render();
+                 }
             }
-            if (this.onEventClick) this.onEventClick({
-                event: { id: eventId }
-            });
         };
+
+        el.addEventListener('mousedown', handleStart);
+        el.addEventListener('touchstart', handleStart, {passive: true});
+
+        el.addEventListener('mousemove', handleMove);
+        el.addEventListener('touchmove', handleMove, {passive: true});
+
+        el.addEventListener('mouseup', handleEnd);
+        el.addEventListener('touchend', handleEnd);
+        el.addEventListener('mouseleave', () => clearTimeout(pressTimer));
+
+        // Prevent click prop
+        el.onclick = (e) => e.stopPropagation();
 
         return el;
+    }
+
+    startEventDrag(event, element, originalEvent, startX, startY) {
+        if (navigator.vibrate) navigator.vibrate(50);
+        element.style.opacity = '0.5';
+        element.style.zIndex = '1000';
+        element.style.pointerEvents = 'none';
+
+        this.dragState = {
+            event: event,
+            element: element,
+            startX: startX,
+            startY: startY,
+            originalLeft: element.style.left,
+            originalTop: element.style.top
+        };
+
+        this.dragMoveHandler = this.onDragMove.bind(this);
+        this.dragEndHandler = this.onDragEnd.bind(this);
+
+        document.addEventListener('mousemove', this.dragMoveHandler);
+        document.addEventListener('touchmove', this.dragMoveHandler, { passive: false });
+        document.addEventListener('mouseup', this.dragEndHandler);
+        document.addEventListener('touchend', this.dragEndHandler);
+    }
+
+    onDragMove(e) {
+        if (!this.dragState) return;
+        if (e.cancelable) e.preventDefault();
+
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+        const dx = clientX - this.dragState.startX;
+        const dy = clientY - this.dragState.startY;
+
+        this.dragState.element.style.transform = `translate(${dx}px, ${dy}px)`;
+    }
+
+    async onDragEnd(e) {
+        if (!this.dragState) return;
+
+        const { event, element } = this.dragState;
+
+        document.removeEventListener('mousemove', this.dragMoveHandler);
+        document.removeEventListener('touchmove', this.dragMoveHandler);
+        document.removeEventListener('mouseup', this.dragEndHandler);
+        document.removeEventListener('touchend', this.dragEndHandler);
+
+        element.style.opacity = '';
+        element.style.zIndex = '';
+        element.style.pointerEvents = '';
+        element.style.transform = '';
+
+        this.dragState = null;
+
+        const clientX = e.changedTouches ? e.changedTouches[0].clientX : e.clientX;
+        const clientY = e.changedTouches ? e.changedTouches[0].clientY : e.clientY;
+
+        const target = document.elementFromPoint(clientX, clientY);
+
+        // Find Time Cell
+        const cell = target ? target.closest('.time-cell') : null;
+        if (cell) {
+            const dateStr = cell.dataset.date;
+            const hour = parseInt(cell.dataset.hour);
+            const calendarName = cell.dataset.calendar;
+
+            // Calculate minutes based on Y in cell
+            const rect = cell.getBoundingClientRect();
+            const y = clientY - rect.top;
+            const ratio = Math.max(0, Math.min(1, y / rect.height));
+            const minutes = Math.floor(ratio * 4) * 15;
+
+            const newStart = new Date(dateStr);
+            newStart.setHours(hour, minutes, 0, 0);
+
+            // Calculate difference
+            const oldStart = new Date(event.start);
+            const duration = new Date(event.end) - oldStart;
+
+            const newEnd = new Date(newStart.getTime() + duration);
+
+            // Create new event object
+            const updatedEvent = {
+                ...event,
+                start: newStart.toISOString(),
+                end: newEnd.toISOString(),
+                calendar: calendarName || event.calendar
+            };
+
+            // Use Callback
+            if (this.onEventChange) {
+                this.onEventChange(updatedEvent);
+            }
+            // Re-render handled by parent/callback or we do it here if parent doesn't immediately
+            // But usually parent will refresh. If we don't refresh here, event snaps back until refresh.
+            // Let's assume parent refreshes.
+            return;
+        }
+
+        // Find Month Cell
+        const dayCell = target ? target.closest('.day-cell') : null;
+        if (dayCell && dayCell.dataset.date) {
+            const newDate = new Date(dayCell.dataset.date);
+            const oldStart = new Date(event.start);
+
+            // Keep time
+            newDate.setHours(oldStart.getHours(), oldStart.getMinutes());
+
+            const duration = new Date(event.end) - oldStart;
+            const newEnd = new Date(newDate.getTime() + duration);
+
+            const updatedEvent = {
+                ...event,
+                start: newDate.toISOString(),
+                end: newEnd.toISOString()
+            };
+
+            if (this.onEventChange) {
+                this.onEventChange(updatedEvent);
+            }
+            return;
+        }
+
+        // If no valid drop, just re-render to reset
+        this.render();
     }
 
     triggerAction(action, id, param) {
