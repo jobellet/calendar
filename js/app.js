@@ -204,6 +204,7 @@ class CalendarApp {
         this.calendarView.onDateClick = this.handleDateClick.bind(this);
         this.calendarView.onRangeSelect = this.handleRangeSelect.bind(this); // Bind range select
         this.calendarView.onEventAction = this.handleEventAction.bind(this);
+        this.calendarView.onEventChange = this.handleEventChange.bind(this);
 
         document.getElementById('prev-btn').onclick = () => this.calendarView.prev();
         document.getElementById('next-btn').onclick = () => this.calendarView.next();
@@ -246,6 +247,14 @@ class CalendarApp {
         await this.eventService.save(updatedEvent);
 
         this.ensureEventVisible(updatedEvent);
+        this.refreshCalendarEvents();
+    }
+
+    async handleEventChange(updatedEvent) {
+        // Handles drag-and-drop updates
+        // We could verify overlaps here if needed, or just save.
+        // Assuming user drag is an explicit override.
+        await this.eventService.save(updatedEvent);
         this.refreshCalendarEvents();
     }
 
