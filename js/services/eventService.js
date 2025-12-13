@@ -57,6 +57,28 @@ class EventService {
         return eventObj;
     }
 
+    checkOverlap(startISO, endISO, calendarNames, excludeEventId) {
+        const start = new Date(startISO);
+        const end = new Date(endISO);
+
+        // Filter events that match the calendars and overlap
+        return this.events.filter(e => {
+            if (e.deleted) return false;
+            // If excludeEventId is provided, ignore the event(s) being updated.
+            // Note: Since we might have multiple events with same base ID (recurrence) or similar,
+            // checking id is tricky if we don't have exact ID.
+            // But usually excludeEventId matches `e.id`.
+            if (excludeEventId && e.id === excludeEventId) return false;
+
+            if (!calendarNames.includes(e.calendar)) return false;
+
+            const eStart = new Date(e.start);
+            const eEnd = new Date(e.end);
+
+            return (start < eEnd && end > eStart);
+        });
+    }
+
     async undo() {
         const previousState = this.historyService.pop();
         if (!previousState) return;
