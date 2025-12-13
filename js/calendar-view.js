@@ -940,6 +940,12 @@ class CalendarView {
         }
     }
 
+    isSameDay(a, b) {
+        return a.getDate() === b.getDate() &&
+               a.getMonth() === b.getMonth() &&
+               a.getFullYear() === b.getFullYear();
+    }
+
     isToday(date) {
         const today = new Date();
         return date.getDate() === today.getDate() &&
