@@ -11,6 +11,7 @@ class CalendarApp {
         this.eventService = new EventService(this.db, this.historyService);
         this.imageService = new ImageService(this.db);
         this.calendarService = new CalendarService(this.db);
+        this.importExportService = new ImportExportService(this.db);
         this.ui = new UI();
         this.megaSync = new MegaSync();
         this.fullCalendar = null;
@@ -156,6 +157,34 @@ class CalendarApp {
                     break;
             }
         });
+    }
+
+    setupImportExportHandlers() {
+        const exportBtn = document.getElementById('btn-export-data');
+        const importBtn = document.getElementById('btn-import-data');
+        const importFile = document.getElementById('file-import-data');
+
+        if (exportBtn) {
+            exportBtn.addEventListener('click', () => {
+                this.importExportService.exportData();
+            });
+        }
+
+        if (importBtn) {
+            importBtn.addEventListener('click', () => {
+                if (importFile) importFile.click();
+            });
+        }
+
+        if (importFile) {
+            importFile.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    this.importExportService.importData(file);
+                }
+                e.target.value = '';
+            });
+        }
     }
 
     initFullCalendar() {
