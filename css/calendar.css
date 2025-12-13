@@ -142,6 +142,17 @@
     min-height: 20px; /* Ensure some height for month events */
 }
 
+.calendar-event.task-event {
+    background: linear-gradient(135deg, #a8e6cf, #00b894);
+    color: #0b3d2e;
+    border: 1px solid rgba(0, 184, 148, 0.4);
+}
+
+.calendar-event.task-done {
+    opacity: 0.6;
+    text-decoration: line-through;
+}
+
 .calendar-event:hover {
     transform: scale(1.02);
     z-index: 10;

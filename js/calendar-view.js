@@ -608,6 +608,13 @@ class CalendarView {
         const el = document.createElement('div');
         el.className = 'calendar-event';
 
+        if ((ev.type || 'event') === 'task') {
+            el.classList.add('task-event');
+        }
+        if (ev.done) {
+            el.classList.add('task-done');
+        }
+
         const eventId = ev.originalId || ev.id;
         el.dataset.eventId = eventId;
 

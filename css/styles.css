@@ -293,6 +293,98 @@ button {
     margin-top: 20px;
 }
 
+#tasks-section {
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: 12px;
+    padding: 12px;
+    box-shadow: var(--glass-shadow);
+}
+
+.tasks-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+#tasks-section h3 {
+    margin: 0;
+}
+
+#add-task-btn {
+    border: none;
+    background: var(--primary-color);
+    color: #fff;
+    padding: 6px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+.tasks-hint {
+    margin: 6px 0 10px 0;
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.task-queue {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.task-item {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 8px;
+    align-items: center;
+    padding: 8px;
+    background: #fff;
+    border: 1px solid var(--glass-border);
+    border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+
+.task-item.dragging {
+    opacity: 0.6;
+}
+
+.task-drag-handle {
+    cursor: grab;
+    color: var(--text-muted);
+    padding: 4px;
+}
+
+.task-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.task-info span {
+    color: var(--text-muted);
+    font-size: 12px;
+}
+
+.task-actions button {
+    border: none;
+    background: var(--secondary-color);
+    color: #fff;
+    padding: 6px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+.task-empty {
+    text-align: center;
+    color: var(--text-muted);
+    padding: 12px;
+    border: 1px dashed var(--glass-border);
+    border-radius: 10px;
+}
+
 #open-image-panel-btn {
     background: linear-gradient(135deg, #FF9A9E 0%, #FECFEF 100%);
     color: #555;

@@ -43,12 +43,17 @@ class CalendarApp {
 
         this.ui.init(this);
         this.ui.renderCalendars(calendars, visibleCalendars);
+        this.ui.renderTaskQueue(this.getTaskQueue());
 
         this.initCalendarView();
 
         this.setupKeyboardShortcuts();
         this.ui.setSyncStatus(false);
         this.restartNotificationLoop();
+
+        this.taskRefreshInterval = setInterval(() => {
+            this.refreshCalendarEvents();
+        }, 30000);
     }
 
     restartNotificationLoop() {
@@ -123,7 +128,7 @@ class CalendarApp {
             return this.upcomingNotificationCache.events;
         }
 
-        const events = this.eventService.getAll().filter(event => {
+        const events = this.eventService.getScheduled(false, now).filter(event => {
             if (event.deleted || event.allDay) return false;
             const start = new Date(event.start);
             return start >= windowStart && start <= windowEnd;
@@ -153,7 +158,7 @@ class CalendarApp {
             return;
         }
 
-        const events = this.eventService.getAll().filter(event => !event.deleted && !event.allDay);
+        const events = this.eventService.getScheduled(false, now).filter(event => !event.deleted && !event.allDay);
         let nextStartDiff = null;
         events.forEach(event => {
             const start = new Date(event.start).getTime() - now.getTime();
@@ -350,6 +355,7 @@ class CalendarApp {
         if (this.calendarView) {
             this.calendarView.render();
         }
+        this.ui.renderTaskQueue(this.getTaskQueue());
     }
 
     handleEventClick(info) {
@@ -619,6 +625,27 @@ class CalendarApp {
             start: start.toISOString(),
             end: end.toISOString(),
             allDay: allDay,
+            type: 'event',
+            durationMinutes: Math.max(1, Math.round((end - start) / 60000)),
+            recurrence: { type: 'none' }
+        };
+        this.ui.populateEventForm(eventData);
+        this.ui.toggleModal(this.ui.elements.eventOverlay, true);
+    }
+
+    openTaskCreation() {
+        const now = new Date();
+        const end = new Date(now.getTime() + 60 * 60000);
+        const defaultCalendar = this.calendarService.getAll()[0]?.name || 'Main';
+        const eventData = {
+            id: '',
+            calendar: defaultCalendar,
+            name: '',
+            start: now.toISOString(),
+            end: end.toISOString(),
+            allDay: false,
+            type: 'task',
+            durationMinutes: 60,
             recurrence: { type: 'none' }
         };
         this.ui.populateEventForm(eventData);
@@ -723,5 +750,26 @@ class CalendarApp {
         } else {
             this.ui.showToast('Sync failed.', 'error');
         }
+    }
+
+    getTaskQueue() {
+        const now = new Date();
+        return this.eventService.getScheduled(false, now)
+            .filter(ev => (ev.type || 'event') === 'task' && !ev.done && new Date(ev.start) <= now)
+            .sort((a, b) => (a.orderIndex || 0) - (b.orderIndex || 0));
+    }
+
+    async reorderTasks(orderIds) {
+        await this.eventService.updateTaskOrder(orderIds);
+        this.refreshCalendarEvents();
+    }
+
+    async markTaskDone(taskId) {
+        const task = this.eventService.find(taskId);
+        if (!task) return;
+        task.done = true;
+        task.updatedAt = Date.now();
+        await this.eventService.save(task);
+        this.refreshCalendarEvents();
     }
 }
