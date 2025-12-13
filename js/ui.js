@@ -500,8 +500,9 @@ class UI {
         buttons.forEach(btn => btn.classList.remove('active'));
         activeBtn.classList.add('active');
 
-        // Hide hours controls for now as we treat it as standard view
-        this.elements.hoursViewControls.style.display = 'none';
+        // Toggle the hours controls based on the selected view
+        const isHoursView = activeBtn.dataset.view === 'hoursView';
+        this.elements.hoursViewControls.style.display = isHoursView ? 'flex' : 'none';
     }
 
     renderCalendars(calendars, visibleCalendars) {
