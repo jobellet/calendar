@@ -18,6 +18,24 @@ class EventService {
         return this.events.filter(e => !e.deleted);
     }
 
+    getScheduled(includeDeleted = false, referenceTime = new Date()) {
+        const baseEvents = this.getAll(includeDeleted);
+        const tasks = [];
+        const nonTasks = [];
+
+        for (const event of baseEvents) {
+            const type = event.type || 'event';
+            if (type === 'task') {
+                tasks.push(event);
+            } else {
+                nonTasks.push(event);
+            }
+        }
+
+        const scheduledTasks = this._scheduleTasks(tasks, referenceTime);
+        return [...nonTasks, ...scheduledTasks];
+    }
+
     find(id) {
         return this.events.find(e => e.id === id);
     }
@@ -56,6 +74,17 @@ class EventService {
         if (eventObj.hasImage === undefined) {
             eventObj.hasImage = false;
         }
+        if (!eventObj.type) {
+            eventObj.type = 'event';
+        }
+        if (!eventObj.durationMinutes) {
+            eventObj.durationMinutes = Math.max(1, Math.round((new Date(eventObj.end) - new Date(eventObj.start)) / 60000));
+        }
+        if (eventObj.type === 'task' && (eventObj.orderIndex === undefined || eventObj.orderIndex === null)) {
+            eventObj.orderIndex = this.getNextOrderIndex();
+        }
+
+        eventObj.updatedAt = Date.now();
 
         await this.db.save('events', eventObj);
         return eventObj;
@@ -102,6 +131,10 @@ class EventService {
             start: '',
             end: '',
             allDay: false,
+            type: 'event',
+            durationMinutes: 60,
+            done: false,
+            orderIndex: 0,
             createdAt: null,
             updatedAt: null,
             recurrence: {
@@ -159,5 +192,65 @@ class EventService {
 
     _isLegacyId(id) {
         return /^ev_\d+$/.test(id);
+    }
+
+    _scheduleTasks(tasks, referenceTime) {
+        const now = new Date(referenceTime);
+        const readyTasks = tasks.filter(t => !t.deleted && !t.done && new Date(t.start) <= now);
+        const futureTasks = tasks
+            .filter(t => !t.deleted && !t.done && new Date(t.start) > now)
+            .sort((a, b) => new Date(a.start) - new Date(b.start));
+        const completedTasks = tasks.filter(t => t.done && !t.deleted);
+
+        readyTasks.sort((a, b) => (a.orderIndex || 0) - (b.orderIndex || 0));
+        completedTasks.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+
+        let cursor = new Date(now);
+        const scheduled = [];
+
+        for (const task of readyTasks) {
+            const durationMs = this._getDurationMs(task);
+            const scheduledTask = { ...task };
+            scheduledTask.start = cursor.toISOString();
+            scheduledTask.end = new Date(cursor.getTime() + durationMs).toISOString();
+            scheduled.push(scheduledTask);
+            cursor = new Date(cursor.getTime() + durationMs);
+        }
+
+        for (const task of futureTasks) {
+            scheduled.push({ ...task });
+        }
+
+        for (const task of completedTasks) {
+            scheduled.push({ ...task });
+        }
+
+        return scheduled;
+    }
+
+    _getDurationMs(event) {
+        if (event.durationMinutes && Number.isFinite(event.durationMinutes)) {
+            return event.durationMinutes * 60000;
+        }
+        const duration = new Date(event.end) - new Date(event.start);
+        return duration > 0 ? duration : 3600000; // default 1h
+    }
+
+    getNextOrderIndex() {
+        const tasks = this.events.filter(ev => (ev.type || 'event') === 'task');
+        if (tasks.length === 0) return 0;
+        return Math.max(...tasks.map(t => t.orderIndex || 0)) + 1;
+    }
+
+    async updateTaskOrder(orderIds) {
+        this.historyService.push(this.events);
+        for (let idx = 0; idx < orderIds.length; idx++) {
+            const id = orderIds[idx];
+            const task = this.find(id);
+            if (task) {
+                task.orderIndex = idx;
+                await this.db.save('events', task);
+            }
+        }
     }
 }

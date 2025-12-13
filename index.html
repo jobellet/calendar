@@ -60,6 +60,15 @@
                 <button id="add-calendar-btn" type="button">+ Add calendar</button>
             </div>
 
+            <div id="tasks-section">
+                <div class="tasks-header">
+                    <h3>Task queue</h3>
+                    <button id="add-task-btn" type="button" title="Add a new task">+ Task</button>
+                </div>
+                <p class="tasks-hint">Tasks start now and stack one after another until done.</p>
+                <div id="task-queue-list" class="task-queue"></div>
+            </div>
+
             <div id="image-management-tab">
                 <button id="open-image-panel-btn" type="button">🎨 Images</button>
             </div>
@@ -241,6 +250,14 @@
                     </div>
                 </label>
 
+                <label>
+                    Type
+                    <select id="event-type">
+                        <option value="event">Event</option>
+                        <option value="task">Task</option>
+                    </select>
+                </label>
+
                 <div class="event-image-group">
                     <label>
                         Event Image (Optional)
@@ -273,6 +290,10 @@
                     <label id="event-end-time-label">
                         End Time
                         <input type="time" id="event-end-time" required>
+                    </label>
+                    <label id="event-duration-label">
+                        Duration (minutes)
+                        <input type="number" id="event-duration" min="1" value="60">
                     </label>
                 </div>
 

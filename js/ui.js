@@ -47,14 +47,17 @@ class UI {
             eventId: document.getElementById('event-id'),
             eventCalendarList: document.getElementById('event-calendar-list'),
             eventName: document.getElementById('event-name'),
+            eventType: document.getElementById('event-type'),
             eventDate: document.getElementById('event-date'),
             eventStartTime: document.getElementById('event-start-time'),
             eventEndDate: document.getElementById('event-end-date'),
             eventEndTime: document.getElementById('event-end-time'),
+            eventDuration: document.getElementById('event-duration'),
             eventAllDay: document.getElementById('event-all-day'),
             eventStartTimeLabel: document.getElementById('event-start-time-label'),
             eventEndDateLabel: document.getElementById('event-end-date-label'),
             eventEndTimeLabel: document.getElementById('event-end-time-label'),
+            eventDurationLabel: document.getElementById('event-duration-label'),
             eventRecurrence: document.getElementById('event-recurrence'),
             eventResetBtn: document.getElementById('event-reset-btn'),
             customRecurrenceOptions: document.getElementById('custom-recurrence-options'),
@@ -84,6 +87,8 @@ class UI {
             closeAddCalendarModalBtn: document.getElementById('close-add-calendar-modal-btn'),
             addCalendarForm: document.getElementById('add-calendar-form'),
             newCalendarName: document.getElementById('new-calendar-name'),
+            taskQueueList: document.getElementById('task-queue-list'),
+            addTaskBtn: document.getElementById('add-task-btn'),
         };
     }
 
@@ -284,6 +289,12 @@ class UI {
             this.toggleModal(this.elements.eventOverlay, false);
         });
 
+        if (this.elements.addTaskBtn) {
+            this.elements.addTaskBtn.addEventListener('click', () => {
+                this.app.openTaskCreation();
+            });
+        }
+
         // Close on Esc
         window.addEventListener('keydown', (e) => {
              if (e.key === 'Escape') {
@@ -342,6 +353,25 @@ class UI {
             this.elements.eventAllDay.addEventListener('change', () => {
                 this.toggleAllDayFields();
             });
+        }
+
+        if (this.elements.eventType) {
+            this.elements.eventType.addEventListener('change', () => {
+                this.toggleTaskFields();
+                this.toggleAllDayFields();
+            });
+        }
+
+        if (this.elements.eventDuration) {
+            this.elements.eventDuration.addEventListener('input', () => this.updateEndFromDuration());
+        }
+
+        if (this.elements.eventStartTime) {
+            this.elements.eventStartTime.addEventListener('input', () => this.updateEndFromDuration());
+        }
+
+        if (this.elements.eventDate) {
+            this.elements.eventDate.addEventListener('change', () => this.updateEndFromDuration());
         }
 
         this.elements.openImagePanelBtn.addEventListener('click', () => {
@@ -642,6 +672,10 @@ class UI {
             checkboxes[0].checked = true;
         }
 
+        if (this.elements.eventType) {
+            this.elements.eventType.value = eventData?.type || 'event';
+        }
+
         const isAllDay = eventData?.allDay || false;
         if (this.elements.eventAllDay) {
             this.elements.eventAllDay.checked = isAllDay;
@@ -669,8 +703,15 @@ class UI {
             this.elements.eventEndTime.value = '';
         }
 
+        if (this.elements.eventDuration) {
+            const durationMinutes = eventData?.durationMinutes || Math.max(1, Math.round((new Date(eventData?.end) - new Date(eventData?.start)) / 60000)) || 60;
+            this.elements.eventDuration.value = durationMinutes;
+        }
+
         this.setRecurrenceValues(eventData?.recurrence);
         this.toggleAllDayFields();
+        this.toggleTaskFields();
+        this.updateEndFromDuration();
     }
 
     clearEventForm() {
@@ -720,6 +761,7 @@ class UI {
     toggleAllDayFields() {
         if (!this.elements.eventAllDay) return;
         const isAllDay = this.elements.eventAllDay.checked;
+        const isTask = this.elements.eventType?.value === 'task';
 
         const timeDisplay = isAllDay ? 'none' : 'block';
         if (this.elements.eventStartTime) {
@@ -733,6 +775,10 @@ class UI {
         if (this.elements.eventStartTimeLabel) this.elements.eventStartTimeLabel.style.display = timeDisplay;
         if (this.elements.eventEndTimeLabel) this.elements.eventEndTimeLabel.style.display = timeDisplay;
 
+        const durationDisplay = isAllDay ? 'none' : 'block';
+        if (this.elements.eventDurationLabel) this.elements.eventDurationLabel.style.display = durationDisplay;
+        if (this.elements.eventDuration) this.elements.eventDuration.disabled = isAllDay;
+
         const endDateDisplay = isAllDay ? 'block' : 'none';
         if (this.elements.eventEndDate) {
             this.elements.eventEndDate.style.display = endDateDisplay;
@@ -741,12 +787,37 @@ class UI {
         if (this.elements.eventEndDateLabel) this.elements.eventEndDateLabel.style.display = endDateDisplay;
     }
 
+    toggleTaskFields() {
+        const isTask = this.elements.eventType?.value === 'task';
+
+        if (this.elements.eventAllDay) {
+            this.elements.eventAllDay.checked = false;
+            this.elements.eventAllDay.disabled = isTask;
+        }
+
+        const recurrenceDisplay = isTask ? 'none' : 'block';
+        if (this.elements.eventRecurrence && this.elements.eventRecurrence.parentElement) {
+            this.elements.eventRecurrence.parentElement.style.display = recurrenceDisplay;
+        }
+        if (this.elements.customRecurrenceOptions) this.elements.customRecurrenceOptions.style.display = recurrenceDisplay;
+
+        if (isTask) {
+            const today = new Date();
+            const dateStr = today.toISOString().slice(0, 10);
+            const timeStr = today.toTimeString().slice(0, 5);
+            if (this.elements.eventDate) this.elements.eventDate.value = dateStr;
+            if (this.elements.eventStartTime) this.elements.eventStartTime.value = timeStr;
+        }
+    }
+
     getEventFormData() {
         const id = this.elements.eventId.value || null;
         const selectedCalendars = Array.from(this.elements.eventCalendarList.querySelectorAll('input:checked')).map(cb => cb.value);
         const name = this.elements.eventName.value.trim();
         const date = this.elements.eventDate.value;
         const isAllDay = this.elements.eventAllDay ? this.elements.eventAllDay.checked : false;
+        const type = this.elements.eventType?.value || 'event';
+        const durationMinutes = Number(this.elements.eventDuration?.value) || 60;
 
         if (selectedCalendars.length === 0) {
             alert('Please select at least one calendar.');
@@ -775,6 +846,11 @@ class UI {
                 return null;
             }
 
+        } else if (type === 'task') {
+            const startTime = this.elements.eventStartTime.value || new Date().toTimeString().slice(0, 5);
+            startISO = new Date(`${date}T${startTime}:00`).toISOString();
+            const durationMs = Math.max(1, durationMinutes) * 60000;
+            endISO = new Date(new Date(startISO).getTime() + durationMs).toISOString();
         } else {
             const startTime = this.elements.eventStartTime.value;
             const endTime = this.elements.eventEndTime.value;
@@ -786,6 +862,11 @@ class UI {
 
             startISO = new Date(`${date}T${startTime}:00`).toISOString();
             endISO = new Date(`${date}T${endTime}:00`).toISOString();
+
+            if (durationMinutes > 0) {
+                const adjusted = new Date(new Date(startISO).getTime() + durationMinutes * 60000).toISOString();
+                endISO = adjusted;
+            }
 
             if (endISO <= startISO) {
                  alert('End time must be after start time.');
@@ -814,8 +895,115 @@ class UI {
             start: startISO,
             end: endISO,
             allDay: isAllDay,
+            type,
+            durationMinutes,
             recurrence
         };
+    }
+
+    updateEndFromDuration() {
+        const isAllDay = this.elements.eventAllDay?.checked;
+        const durationMinutes = Number(this.elements.eventDuration?.value);
+        if (isAllDay || !this.elements.eventEndTime || !this.elements.eventDate || !this.elements.eventStartTime) return;
+        if (!Number.isFinite(durationMinutes) || durationMinutes <= 0) return;
+
+        const date = this.elements.eventDate.value;
+        const startTime = this.elements.eventStartTime.value;
+        if (!date || !startTime) return;
+
+        const start = new Date(`${date}T${startTime}:00`);
+        const end = new Date(start.getTime() + durationMinutes * 60000);
+
+        this.elements.eventEndTime.value = end.toTimeString().slice(0, 5);
+        if (this.elements.eventEndDate) {
+            this.elements.eventEndDate.value = end.toISOString().slice(0, 10);
+        }
+    }
+
+    renderTaskQueue(tasks) {
+        if (!this.elements.taskQueueList) return;
+        this.elements.taskQueueList.innerHTML = '';
+
+        if (!tasks.length) {
+            const empty = document.createElement('div');
+            empty.className = 'task-empty';
+            empty.textContent = 'No tasks in queue';
+            this.elements.taskQueueList.appendChild(empty);
+            return;
+        }
+
+        tasks.forEach(task => {
+            const item = document.createElement('div');
+            item.className = 'task-item';
+            item.draggable = true;
+            item.dataset.id = task.id;
+
+            const handle = document.createElement('span');
+            handle.className = 'task-drag-handle';
+            handle.textContent = '⇅';
+            item.appendChild(handle);
+
+            const info = document.createElement('div');
+            info.className = 'task-info';
+            const duration = task.durationMinutes || Math.round((new Date(task.end) - new Date(task.start)) / 60000);
+            info.innerHTML = `<strong>${task.name}</strong><span>${duration} min</span>`;
+            item.appendChild(info);
+
+            const actions = document.createElement('div');
+            actions.className = 'task-actions';
+            const doneBtn = document.createElement('button');
+            doneBtn.type = 'button';
+            doneBtn.textContent = 'Done';
+            doneBtn.addEventListener('click', () => this.app.markTaskDone(task.id));
+            actions.appendChild(doneBtn);
+            item.appendChild(actions);
+
+            this.elements.taskQueueList.appendChild(item);
+        });
+
+        this.setupTaskDragAndDrop();
+    }
+
+    setupTaskDragAndDrop() {
+        const list = this.elements.taskQueueList;
+        if (!list) return;
+
+        let dragItem = null;
+
+        list.querySelectorAll('.task-item').forEach(item => {
+            item.addEventListener('dragstart', (e) => {
+                dragItem = item;
+                item.classList.add('dragging');
+                e.dataTransfer.effectAllowed = 'move';
+            });
+            item.addEventListener('dragend', () => {
+                item.classList.remove('dragging');
+                const newOrder = Array.from(list.querySelectorAll('.task-item')).map(el => el.dataset.id);
+                this.app.reorderTasks(newOrder);
+            });
+            item.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                const afterElement = this.getDragAfterElement(list, e.clientY);
+                if (!afterElement) {
+                    list.appendChild(dragItem);
+                } else {
+                    list.insertBefore(dragItem, afterElement);
+                }
+            });
+        });
+    }
+
+    getDragAfterElement(container, y) {
+        const draggableElements = [...container.querySelectorAll('.task-item:not(.dragging)')];
+        return draggableElements.reduce((closest, child) => {
+            const box = child.getBoundingClientRect();
+            const offset = y - box.top - box.height / 2;
+            if (offset < 0 && offset > closest.offset) {
+                return { offset, element: child };
+            } else {
+                return closest;
+            }
+        }, { offset: Number.NEGATIVE_INFINITY }).element;
     }
 
     setupLongPressHandlers() {
