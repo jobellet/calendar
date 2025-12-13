@@ -13,10 +13,8 @@
     <link rel="stylesheet" href="css/header-img.css">
     <link rel="stylesheet" href="css/close-btn.css">
     <link rel="stylesheet" href="css/features.css">
+    <link rel="stylesheet" href="css/calendar.css">
 
-    <!-- FullCalendar Scheduler (includes Core + Standard + Premium plugins) -->
-    <script src="https://cdn.jsdelivr.net/npm/fullcalendar-scheduler@6.1.15/index.global.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/fullcalendar-rrule@6.1.15/index.global.min.js"></script>
     <script src="https://unpkg.com/megajs@1/dist/main.browser-umd.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
@@ -69,6 +67,14 @@
 
         <!-- Main Calendar Area -->
         <main id="main-content">
+            <div class="calendar-header">
+                <div class="calendar-nav">
+                    <button id="prev-btn" class="nav-btn">←</button>
+                    <button id="today-btn" class="nav-btn">Today</button>
+                    <button id="next-btn" class="nav-btn">→</button>
+                </div>
+                <h2 id="calendar-title">Month Year</h2>
+            </div>
             <div id="calendar"></div>
             <!-- Mobile Floating Action Button -->
             <button class="fab-add-event">+</button>
@@ -315,6 +321,7 @@
     <script src="js/services/eventService.js"></script>
     <script src="js/services/imageService.js"></script>
     <script src="js/services/calendarService.js"></script>
+    <script src="js/calendar-view.js"></script>
     <script src="js/ui.js"></script>
     <script src="js/mega.js"></script>
     <script src="js/app.js"></script>

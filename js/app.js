@@ -13,17 +13,18 @@ class CalendarApp {
         this.calendarService = new CalendarService(this.db);
         this.ui = new UI();
         this.megaSync = new MegaSync();
-        this.fullCalendar = null;
+
+        this.calendarView = null;
+
         this.hoursViewMode = 'auto'; // 'auto' or 'manual'
         this.hoursViewCenterTime = null;
         this.notificationInterval = null;
-        this.notifiedEvents = new Set(); // To prevent duplicate notifications
+        this.notifiedEvents = new Set();
     }
 
     async init() {
         await this.db.init();
 
-        // Load data from services
         const { calendars, visibleCalendars } = await this.calendarService.load();
         await this.eventService.load();
         await this.imageService.load();
@@ -31,18 +32,8 @@ class CalendarApp {
         this.ui.init(this);
         this.ui.renderCalendars(calendars, visibleCalendars);
 
-        this.initFullCalendar();
+        this.initCalendarView();
 
-        // Mark the correct view button active based on initialView
-        // Note: 'resourceTimeGridDay' maps to 'timeGridDay' button (Day) or 'hoursView' depending on intent.
-        // The default initialView is 'resourceTimeGridDay'.
-        // If we want the Day button (timeGridDay) to be active, we should check what that button does.
-        // It calls changeView('timeGridDay') -> which switches to 'resourceTimeGridDay'.
-        // So 'resourceTimeGridDay' corresponds to the "Day" button.
-        const dayBtn = this.ui.elements.viewSelector.querySelector('button[data-view="timeGridDay"]');
-        if (dayBtn) {
-            this.ui.setActiveViewButton(dayBtn);
-        }
         this.setupKeyboardShortcuts();
         this.ui.setSyncStatus(false);
         this.restartNotificationLoop();
@@ -55,8 +46,8 @@ class CalendarApp {
 
         const settings = this.settingsService.get();
         if (settings.voiceEnabled) {
-            this.checkNotifications(); // Run immediately
-            this.notificationInterval = setInterval(() => this.checkNotifications(), 5000); // Check every 5s
+            this.checkNotifications();
+            this.notificationInterval = setInterval(() => this.checkNotifications(), 5000);
         }
     }
 
@@ -73,15 +64,7 @@ class CalendarApp {
             const start = new Date(event.start);
             const diffMs = start - now;
 
-            // Tolerance window for "At Start": -30s to +30s (approx 0 min)
-            // But we run every 5s, so we just need to be within a window.
-            // Let's say we notify if within -10s to +60s of the target time?
-            // Actually, comparing absolute difference is safer.
-
-            // 1. Check "At Start"
             if (settings.voiceAtStart) {
-                // Target: 0 minutes before.
-                // Allow notification if we are within [-30s, 30s] of start time.
                 if (Math.abs(diffMs) <= 30000) {
                      const key = `${event.id}_start`;
                      if (!this.notifiedEvents.has(key)) {
@@ -92,11 +75,8 @@ class CalendarApp {
                 }
             }
 
-            // 2. Check "Before Start"
             if (settings.voiceLeadTime > 0) {
                  const targetDiffMs = settings.voiceLeadTime * 60000;
-                 // We want (start - now) approx targetDiffMs
-                 // i.e., abs((start - now) - targetDiffMs) <= 30000
                  if (Math.abs(diffMs - targetDiffMs) <= 30000) {
                      const key = `${event.id}_before`;
                      if (!this.notifiedEvents.has(key)) {
@@ -111,46 +91,37 @@ class CalendarApp {
 
     speak(eventName, minutesBefore) {
         if (!('speechSynthesis' in window)) return;
-
         const text = this.settingsService.getNotificationText(eventName, minutesBefore);
         const utterance = new SpeechSynthesisUtterance(text);
-
-        // Set language
         const settings = this.settingsService.get();
         utterance.lang = settings.language;
-
-        // Find a matching voice if possible (optional)
-        // const voices = window.speechSynthesis.getVoices();
-        // utterance.voice = voices.find(v => v.lang.startsWith(settings.language));
-
         window.speechSynthesis.speak(utterance);
     }
 
     setupKeyboardShortcuts() {
         document.addEventListener('keydown', (e) => {
-            // Ignore if input/textarea is focused
             if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName) || document.activeElement.isContentEditable) {
                 return;
             }
 
-            if (!this.fullCalendar) return;
+            if (!this.calendarView) return;
 
             switch (e.key) {
                 case 'ArrowLeft':
-                    this.fullCalendar.prev();
+                    this.calendarView.prev();
                     break;
                 case 'ArrowRight':
-                    this.fullCalendar.next();
+                    this.calendarView.next();
                     break;
                 case 'ArrowUp':
-                    if (this.fullCalendar.view.type === 'hoursView') {
-                        e.preventDefault(); // Prevent page scroll
+                    if (this.calendarView.viewType === 'hoursView') {
+                        e.preventDefault();
                         this.shiftHoursView(-30);
                     }
                     break;
                 case 'ArrowDown':
-                    if (this.fullCalendar.view.type === 'hoursView') {
-                        e.preventDefault(); // Prevent page scroll
+                    if (this.calendarView.viewType === 'hoursView') {
+                        e.preventDefault();
                         this.shiftHoursView(30);
                     }
                     break;
@@ -158,62 +129,75 @@ class CalendarApp {
         });
     }
 
-    initFullCalendar() {
-        const calendarEl = this.ui.elements.calendarEl;
-        const resources = Array.from(this.calendarService.getVisible()).map(name => ({ id: name, title: name }));
+    initCalendarView() {
+        const calendarEl = document.getElementById('calendar');
+        this.calendarView = new CalendarView(
+            calendarEl,
+            this.eventService,
+            this.calendarService,
+            this.imageService
+        );
 
-        this.fullCalendar = new FullCalendar.Calendar(calendarEl, {
-            // Using standard day view instead of resource view to avoid premium license requirement
-            // schedulerLicenseKey: 'GPL-My-Project-Is-Open-Source',
-            initialView: 'timeGridDay',
-            // resources: resources, // Resources disabled to avoid scheduler dependency
-            // resourceAreaHeaderContent: 'Calendars',
-            initialDate: new Date(),
-            height: '100%',
-            nowIndicator: true,
-            slotMinTime: '00:00:00',
-            slotMaxTime: '24:00:00',
-            scrollTime: this.getScrollTimeString(),
-            headerToolbar: {
-                left: 'prev,next today',
-                center: 'title',
-                right: ''
-            },
-            editable: true,
-            selectable: true,
-            selectMirror: true,
-            eventContent: this.renderEventContent.bind(this),
-            resourceLabelContent: this.renderResourceLabel.bind(this),
-            eventClick: this.handleEventClick.bind(this),
-            dateClick: this.handleDateClick.bind(this),
-            select: this.handleSelect.bind(this),
-            selectLongPressDelay: 300,
-            eventLongPressDelay: 300,
-            eventDrop: this.handleEventModify.bind(this),
-            eventResize: this.handleEventModify.bind(this),
-            views: {
-                hoursView: {
-                    type: 'timeGridDay', // Use standard day view
-                    duration: { days: 1 },
-                    buttonText: 'Hours',
-                    // The range will be dynamic, but we start regular
-                }
-            },
-            datesSet: (info) => {
-                if (info.view.type === 'hoursView') { // Should match view name
-                    this.enableHoursViewUpdates(true);
-                } else {
-                    this.enableHoursViewUpdates(false);
-                }
-            }
-        });
+        this.calendarView.onEventClick = this.handleEventClick.bind(this);
+        this.calendarView.onDateClick = this.handleDateClick.bind(this);
 
-        this.refreshCalendarEvents();
-        this.fullCalendar.render();
+        document.getElementById('prev-btn').onclick = () => this.calendarView.prev();
+        document.getElementById('next-btn').onclick = () => this.calendarView.next();
+        document.getElementById('today-btn').onclick = () => this.calendarView.today();
+
+        this.calendarView.render();
+    }
+
+    refreshCalendarResources() {
+       this.refreshCalendarEvents();
+    }
+
+    refreshCalendarEvents() {
+        if (this.calendarView) {
+            this.calendarView.render();
+        }
+    }
+
+    handleEventClick(info) {
+        const event = this.eventService.find(info.event.id);
+        if (event) {
+            this.ui.populateEventForm(event);
+            this.ui.toggleModal(this.ui.elements.eventOverlay, true);
+        }
+    }
+
+    handleDateClick(date) {
+        if (this.clipboard) {
+             // Paste support could be added here
+        }
+
+        if (this.calendarView.viewType === 'dayGridMonth') {
+             this.calendarView.setDate(date);
+             this.changeView('timeGridDay');
+             const dayBtn = this.ui.elements.viewSelector.querySelector('button[data-view="timeGridDay"]');
+             if (dayBtn) this.ui.setActiveViewButton(dayBtn);
+        } else {
+             const start = new Date(date);
+             const end = new Date(start.getTime() + 60 * 60000);
+             this.openEventCreationFromRange(start, end);
+        }
+    }
+
+    changeView(view) {
+        // If switching to hoursView, we need to enable update loop
+        if (view === 'hoursView') {
+             this.calendarView.setView('hoursView');
+             this.enableHoursViewUpdates(true);
+        } else {
+             this.calendarView.setView(view);
+             this.enableHoursViewUpdates(false);
+             // Reset slots to default if needed (though view switching handles it)
+             this.calendarView.setSlotHeight(50); // Reset to default
+             this.calendarView.setRange(0, 24);
+        }
     }
 
     enableHoursViewUpdates(enable) {
-        // Toggle the stretched view class
         if (this.ui.elements.calendarEl) {
             this.ui.elements.calendarEl.classList.toggle('view-hours-stretched', enable);
         }
@@ -223,12 +207,7 @@ class CalendarApp {
             this.hoursViewInterval = null;
         }
 
-        // Reset to full day if disabling (optional, but good for other views)
-        if (!enable && this.fullCalendar) {
-            this.fullCalendar.setOption('slotMinTime', '00:00:00');
-            this.fullCalendar.setOption('slotMaxTime', '24:00:00');
-
-            // Remove resize listener if it exists
+        if (!enable) {
             if (this.hoursResizeListener) {
                 window.removeEventListener('resize', this.hoursResizeListener);
                 this.hoursResizeListener = null;
@@ -238,10 +217,8 @@ class CalendarApp {
 
         if (enable) {
             this.updateHoursViewWindow();
-            // Update every minute to keep the window moving
             this.hoursViewInterval = setInterval(() => this.updateHoursViewWindow(), 60000);
 
-            // Add resize listener to keep stretching correct
             if (!this.hoursResizeListener) {
                 this.hoursResizeListener = () => requestAnimationFrame(() => this.updateHoursViewWindow());
                 window.addEventListener('resize', this.hoursResizeListener);
@@ -250,7 +227,7 @@ class CalendarApp {
     }
 
     updateHoursViewWindow() {
-        if (!this.fullCalendar) return;
+        if (!this.calendarView) return;
 
         let centerMs;
         if (this.hoursViewMode === 'manual' && this.hoursViewCenterTime) {
@@ -261,23 +238,19 @@ class CalendarApp {
             const startOfDay = new Date(now);
             startOfDay.setHours(0, 0, 0, 0);
             centerMs = now.getTime() - startOfDay.getTime();
-
-            // Keep center time synced in case we switch to manual
             this.hoursViewCenterTime = now;
         }
 
-        // Window: -15 minutes to +90 minutes
+        // Window: -15 minutes to +90 minutes (105 mins total)
         const START_OFFSET_MS = 15 * 60 * 1000;
         const END_OFFSET_MS = 90 * 60 * 1000;
-        const DURATION_MS = START_OFFSET_MS + END_OFFSET_MS; // 105 minutes
+        const DURATION_MS = START_OFFSET_MS + END_OFFSET_MS;
 
         let startMs = centerMs - START_OFFSET_MS;
         let endMs = centerMs + END_OFFSET_MS;
 
-        // Clamp to 0-24h
         if (startMs < 0) {
             startMs = 0;
-            // Cap at 24h if needed, or maintain duration if possible but usually 0 start implies we shift.
             endMs = Math.min(DURATION_MS, 24 * 60 * 60 * 1000);
         }
         if (endMs > 24 * 60 * 60 * 1000) {
@@ -285,55 +258,32 @@ class CalendarApp {
             startMs = Math.max(0, endMs - DURATION_MS);
         }
 
-        const formatDuration = (ms) => {
-            const totalSeconds = Math.floor(ms / 1000);
-            const h = Math.floor(totalSeconds / 3600);
-            const m = Math.floor((totalSeconds % 3600) / 60);
-            const s = totalSeconds % 60;
-            return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-        };
+        // Calculate hours for setRange
+        const startHour = startMs / 3600000;
+        const endHour = endMs / 3600000;
 
-        const minTime = formatDuration(startMs);
-        const maxTime = formatDuration(endMs);
+        this.calendarView.setRange(startHour, endHour);
 
-        // ---------------------------------------------------------
-        // Calculate dynamic slot height to stretch to full view height
-        // ---------------------------------------------------------
+        // Dynamic slot height
         if (this.ui.elements.calendarEl) {
-            // Get the view content element (scroller) or approximate available space
-            // Best approximation: Calendar Client Height - Header Height
-            // Header height is roughly ~100px (Title bar + Day headers)
-            // But we can measure them dynamically if possible, or just use the container.
-
-            // Let's try to measure the container and assume we want the *slots* to fill it.
-            // FullCalendar structure: .fc-header-toolbar (top), .fc-view-harness (content)
-            // .fc-view-harness usually fills the rest.
-            // Inside, .fc-scrollgrid etc.
-
             const calendarHeight = this.ui.elements.calendarEl.clientHeight;
-            // Measure toolbar if possible
-            const toolbar = this.ui.elements.calendarEl.querySelector('.fc-toolbar');
-            const header = this.ui.elements.calendarEl.querySelector('.fc-col-header');
+            const toolbar = this.ui.elements.calendarEl.querySelector('.calendar-header');
+            const header = this.ui.elements.calendarEl.querySelector('.time-grid-header');
 
             const toolbarHeight = toolbar ? toolbar.offsetHeight : 50;
-            const headerHeight = header ? header.offsetHeight : 30; // approx if not rendered yet
+            const headerHeight = header ? header.offsetHeight : 30;
 
-            const availableHeight = calendarHeight - toolbarHeight - headerHeight - 20; // -20 buffer
+            const availableHeight = calendarHeight - toolbarHeight - headerHeight - 10;
 
-            // Duration is 105 minutes. Slot duration is 30 mins (default).
-            // Slots count = 105 / 30 = 3.5 slots.
-            const slotsCount = DURATION_MS / (30 * 60 * 1000);
+            // Total hours visible = endHour - startHour
+            const totalHours = endHour - startHour;
 
-            // We want the total height to cover 'slotsCount' slots.
-            // newSlotHeight * slotsCount = availableHeight
-            const newSlotHeight = Math.max(20, availableHeight / slotsCount);
+            // We want availableHeight to cover totalHours
+            // Slot Height (per hour) = availableHeight / totalHours
+            const newSlotHeight = Math.max(20, availableHeight / totalHours);
 
-            this.ui.elements.calendarEl.style.setProperty('--fc-slot-height', `${newSlotHeight}px`);
+            this.calendarView.setSlotHeight(newSlotHeight);
         }
-
-        this.fullCalendar.setOption('slotMinTime', minTime);
-        this.fullCalendar.setOption('slotMaxTime', maxTime);
-        // this.fullCalendar.scrollToTime(minTime); // Not needed if we stretch perfectly, but good safety
     }
 
     shiftHoursView(minutes) {
@@ -341,7 +291,6 @@ class CalendarApp {
         if (!this.hoursViewCenterTime) {
             this.hoursViewCenterTime = new Date();
         }
-        // Shift
         this.hoursViewCenterTime = new Date(this.hoursViewCenterTime.getTime() + minutes * 60000);
         this.updateHoursViewWindow();
     }
@@ -352,177 +301,117 @@ class CalendarApp {
         this.updateHoursViewWindow();
     }
 
-    refreshCalendarResources() {
-        if (!this.fullCalendar) return;
-
-        const visibleCalendars = this.calendarService.getVisible();
-        const currentResources = this.fullCalendar.getResources();
-        const currentResourceIds = new Set(currentResources.map(r => r.id));
-
-        // Add new resources
-        visibleCalendars.forEach(calName => {
-            if (!currentResourceIds.has(calName)) {
-                this.fullCalendar.addResource({ id: calName, title: calName });
-            }
-        });
-
-        // Remove old resources
-        currentResourceIds.forEach(resId => {
-            if (!visibleCalendars.has(resId)) {
-                const resource = this.fullCalendar.getResourceById(resId);
-                if (resource) resource.remove();
-            }
-        });
-    }
-
-    refreshCalendarEvents() {
-        if (!this.fullCalendar) return;
-        this.fullCalendar.removeAllEvents();
-
-        const visibleEvents = this.eventService.getAll().filter(ev =>
-            this.calendarService.getVisible().has(ev.calendar)
-        );
-
-        visibleEvents.forEach(ev => {
-            this.fullCalendar.addEvent(this.formatEventForCalendar(ev));
-        });
-    }
-
-    renderEventContent(info) {
-        const eventData = this.eventService.find(info.event.id);
-        const imageEntry = this.imageService.findEventImage(eventData);
-        const wrapper = document.createElement('div');
-        wrapper.className = 'custom-event-content';
-        wrapper.dataset.eventId = info.event.id; // Store ID for Context Menu
-
-        if (imageEntry?.url) {
-            wrapper.style.backgroundColor = imageEntry.averageColor; // Fill background for event
-            const img = document.createElement('img');
-            img.src = imageEntry.url;
-            img.alt = info.event.title;
-            // Let CSS handle size (height: 100%, aspect-ratio: 1)
-            img.style.objectPosition = `${imageEntry.cropX}% ${imageEntry.cropY}%`;
-            wrapper.appendChild(img);
-        }
-
-        const titleEl = document.createElement('div');
-        titleEl.className = 'event-title';
-        titleEl.textContent = info.event.title;
-        wrapper.appendChild(titleEl);
-
-        return { domNodes: [wrapper] };
-    }
-
-    renderResourceLabel(info) {
-        // info.resource.id is the calendar name
-        const calendarName = info.resource.id;
-        // We need to look up if there is an image for this calendar
-        // Since we don't have a direct method, we can iterate
-        const image = this.imageService.images.find(img =>
-            !img.category && img.calendar === calendarName
-        );
-
-        if (image) {
-            const wrapper = document.createElement('div');
-            wrapper.className = 'resource-header-content';
-            wrapper.style.backgroundColor = image.averageColor; // Fill background
-
-            const img = document.createElement('img');
-            img.src = image.url;
-            img.style.objectFit = 'contain'; // Maintain aspect ratio
-            img.style.objectPosition = `${image.cropX}% ${image.cropY}%`;
-            img.title = calendarName;
-            wrapper.appendChild(img);
-            return { domNodes: [wrapper] };
-        }
-
-        return { html: `<span>${calendarName}</span>` };
-    }
-
-    // #region FullCalendar Event Handlers
-    handleEventClick(info) {
-        if (this.ignoreNextClick) {
-            this.ignoreNextClick = false;
-            return;
-        }
-
-        const event = this.eventService.find(info.event.id);
-        if (event) {
-            this.ui.populateEventForm(event);
-            this.ui.toggleModal(this.ui.elements.eventOverlay, true);
-        }
-    }
-
-    handleDateClick(info) {
-        if (this.isPastePending) {
-            this.isPastePending = false;
-            if (this.clipboard) {
-                // If in dayGrid view, info.date is 00:00. We might want to keep that if pasting all day?
-                // Or if we copied a time event, we paste it at 00:00?
-                // The `preparePasteEvent` logic sets time relative to start.
-                this.preparePasteEvent(info.date);
-            }
-            return;
-        }
-
-        if (this.fullCalendar.view.type.startsWith('dayGrid')) {
-            this.fullCalendar.changeView('timeGridDay', info.date);
-            const dayBtn = this.ui.elements.viewSelector.querySelector('button[data-view="timeGridDay"]');
-            if (dayBtn) this.ui.setActiveViewButton(dayBtn);
-        }
-    }
-
-    handleSelect(info) {
-        // Ensure we handle selection correctly
-        if (this.fullCalendar) {
-            const calendarName = info.resource ? info.resource.id :
-                (this.calendarService.getAll()[0]?.name || 'Main');
-
-            // Check if it is a single day selection in Month view (start + 1 day = end)
-            // In dayGridMonth, select info usually has start at 00:00 and end at 00:00 next day.
-            // If the difference is exactly 24 hours, it's a single day click.
-            // The user wants single taps to open Day View.
-            // FullCalendar's dateClick handles single taps on cells.
-            // FullCalendar's select handles drags.
-            // However, depending on config, select might fire on click too.
-            // We check duration.
-            const diffTime = Math.abs(info.end - info.start);
-            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-            // If it's effectively 1 day (or less, though select usually snaps to days in month view)
-            // AND we are in month view
-            if (this.fullCalendar.view.type === 'dayGridMonth' && diffDays <= 1) {
-                 // Single day selection -> Ignore here, let dateClick handle it
-                 // OR manually switch view if dateClick isn't firing (but it should be)
-                 // Actually, if we return here, dateClick should have fired or will fire.
-                 // But wait, if 'selectable' is true, does 'dateClick' still fire? Yes.
-                 // But if we select, we might want to unselect.
-                 this.fullCalendar.unselect();
-                 return;
-            }
-
-            // Otherwise, it's a multi-day selection or a time-range selection in other views.
-            this.openEventCreationFromRange(info.start, info.end, calendarName, info.allDay);
-        }
-    }
-
-    async handleEventModify(info) {
-        const event = this.eventService.find(info.event.id);
-        if (event) {
-            const updates = {
-                ...event,
-                start: info.event.start.toISOString(),
-                end: info.event.end ? info.event.end.toISOString() : event.end
-            };
-
-            // Handle Resource (Calendar) Change
-            if (info.newResource && info.newResource.id !== event.calendar) {
-                updates.calendar = info.newResource.id;
-            }
-
-            await this.eventService.save(updates);
+    async addCalendar(name) {
+        const newCal = await this.calendarService.add(name);
+        if (newCal) {
+            this.ui.renderCalendars(this.calendarService.getAll(), this.calendarService.getVisible());
             this.refreshCalendarEvents();
         }
+    }
+
+    async setCalendarVisibility(calendarName, isVisible) {
+        await this.calendarService.setVisibility(calendarName, isVisible);
+        this.refreshCalendarEvents();
+    }
+
+    async undoLastAction() {
+        await this.eventService.undo();
+        this.refreshCalendarEvents();
+    }
+
+    async saveEventFromForm() {
+        const formData = this.ui.getEventFormData();
+        if (!formData) return;
+
+        const calendars = formData.calendars;
+        const originalId = formData.id;
+        let primarySavedEvent = null;
+
+        for (let i = 0; i < calendars.length; i++) {
+            const calName = calendars[i];
+
+            const eventData = { ...formData };
+            delete eventData.calendars;
+            delete eventData.imageFile;
+            eventData.calendar = calName;
+
+            let currentId = '';
+            if (originalId && i === 0) {
+                 currentId = originalId;
+            }
+
+            eventData.id = currentId;
+
+            const saved = await this.eventService.save(eventData);
+            if (i === 0) primarySavedEvent = saved;
+
+            const crop = { cropX: 50, cropY: 50 };
+
+            if (formData.imageFile && saved) {
+                await new Promise((resolve) => {
+                    const r = new FileReader();
+                    r.onload = async (e) => {
+                        await this.imageService.saveEventImage(saved.id, e.target.result, crop, false);
+                        resolve();
+                    };
+                    r.readAsDataURL(formData.imageFile);
+                });
+
+                if (formData.croppedDataUrl) {
+                     await this.imageService.saveEventImage(saved.id, formData.croppedDataUrl, crop, true);
+                }
+            }
+            else if (formData.croppedDataUrl && saved) {
+                 await this.imageService.saveEventImage(saved.id, formData.croppedDataUrl, crop, true);
+            }
+        }
+
+        this.refreshCalendarEvents();
+    }
+
+    async saveCalendarImage(calendarName, dataUrl, crop) {
+        await this.imageService.saveCalendarImage(calendarName, dataUrl, crop);
+        this.refreshCalendarEvents();
+    }
+
+    async saveCategoryImage(scope, category, dataUrl, crop) {
+        await this.imageService.saveCategoryImage(scope, category, dataUrl, crop);
+
+        const matchingEvents = this.eventService.getAll().filter(ev =>
+            ev.name.toLowerCase() === category.trim().toLowerCase() &&
+            (scope === 'all' || ev.calendar === scope)
+        );
+        for (const ev of matchingEvents) {
+            await this.eventService.save({ ...ev, hasImage: true });
+        }
+
+        this.refreshCalendarEvents();
+    }
+
+    getScrollTimeString() { return "08:00:00"; }
+    getTimeStripWindow() { return { startMinutes: 0, endMinutes: 24 * 60 }; }
+
+    openEventCreationAt(hour, minute) {
+        const baseDate = this.calendarView ? this.calendarView.currentDate : new Date();
+        const startDate = new Date(baseDate);
+        startDate.setHours(hour, minute, 0, 0);
+        const endDate = new Date(startDate.getTime() + 60 * 60000);
+        this.openEventCreationFromRange(startDate, endDate);
+    }
+
+    openEventCreationFromRange(start, end, calendarName, allDay = false) {
+        const defaultCalendar = calendarName || this.calendarService.getAll()[0]?.name || 'Main';
+        const eventData = {
+            id: '',
+            calendar: defaultCalendar,
+            name: '',
+            start: start.toISOString(),
+            end: end.toISOString(),
+            allDay: allDay,
+            recurrence: { type: 'none' }
+        };
+        this.ui.populateEventForm(eventData);
+        this.ui.toggleModal(this.ui.elements.eventOverlay, true);
     }
 
     copyEvent(eventId) {
@@ -545,271 +434,15 @@ class CalendarApp {
 
         const newEvent = {
             ...this.clipboard,
-            id: '', // New ID will be generated
+            id: '',
             calendar: calendarId || this.clipboard.calendar,
             start: newStart.toISOString(),
             end: newEnd.toISOString()
         };
 
-        // Remove recurrence from copy or keep? Usually copy logic keeps it, but maybe better to prompt?
-        // Let's keep it simple: exact clone.
-
         await this.eventService.save(newEvent);
         this.refreshCalendarEvents();
         this.ui.showToast('Event pasted', 'success');
-    }
-
-    changeView(view) {
-        // If switching to hoursView, fullCalendar treats it as custom view if defined in views
-        // We defined 'hoursView' in views config.
-        // We now use standard timeGridDay instead of resourceTimeGridDay
-        const newView = view === 'timeGridDay' ? 'timeGridDay' : view;
-        this.fullCalendar.changeView(newView);
-    }
-    // #endregion
-
-    // #region UI-triggered Actions
-    async addCalendar(name) {
-        const newCal = await this.calendarService.add(name);
-        if (newCal) {
-            this.ui.renderCalendars(this.calendarService.getAll(), this.calendarService.getVisible());
-            this.refreshCalendarResources();
-            this.refreshCalendarEvents();
-        }
-    }
-
-    async setCalendarVisibility(calendarName, isVisible) {
-        await this.calendarService.setVisibility(calendarName, isVisible);
-        this.refreshCalendarResources();
-        this.refreshCalendarEvents();
-    }
-
-    async undoLastAction() {
-        await this.eventService.undo();
-        this.refreshCalendarEvents();
-    }
-
-    async saveEventFromForm() {
-        const formData = this.ui.getEventFormData();
-        if (!formData) return;
-
-        // Create a copy for each selected calendar
-        // If we are editing (id exists), we update the main event (belonging to one calendar)
-        // and optionally create copies in others.
-        // BUT, since we changed the UI to checkbox, formData.calendars is an array.
-
-        // If it's a new event (no ID), we create one for each calendar in the list.
-        // If it's an existing event, we update it. If user selected other calendars too, we create copies.
-
-        const calendars = formData.calendars; // Array
-        const originalId = formData.id;
-        let primarySavedEvent = null;
-
-        // We process the first calendar as the "primary" update if editing, or just the first creation
-        // Actually, if we are editing, we know the event's original calendar.
-        // But the form data only gives us the *selected* calendars now.
-        // If the original calendar is not in the list, it effectively moves? Or we just iterate.
-
-        // Let's iterate all selected calendars.
-        for (let i = 0; i < calendars.length; i++) {
-            const calName = calendars[i];
-
-            // Prepare event data for this calendar
-            const eventData = { ...formData };
-            delete eventData.calendars; // remove the array
-            delete eventData.imageFile; // handle separately
-            eventData.calendar = calName;
-
-            // Logic for ID:
-            // If this is the *first* iteration AND we have an original ID, we treat it as the update.
-            // Subsequent iterations (or if no original ID) are new events (copies).
-            // WAIT: If I am editing an event in "Work", and I select "Work" and "Home".
-            // 1. Update "Work" event (preserve ID).
-            // 2. Create new "Home" event (new ID).
-
-            // If I am editing an event in "Work", and I UNCHECK "Work" and select "Home".
-            // 1. Create "Home".
-            // What happens to "Work"? It remains touched? Or should be deleted?
-            // The prompt implies "add the possibility to select more that one calendar ... copies".
-            // It doesn't explicitly say "Move" or "Delete from original".
-            // So I will assume we are CREATING copies or Updating the current one.
-
-            // To be safe and simple:
-            // If `originalId` is set, we need to know which calendar it belonged to, to decide if we update or copy.
-            // But we don't easily have the original event here without fetching.
-            // Let's fetch it if id exists.
-
-            let currentId = '';
-            if (originalId && i === 0) {
-                 // We try to reuse the ID for the first one, assuming the user likely kept the original calendar or we just pick one to be the "same" event.
-                 // Actually, if we want to support "update current, copy to others", we should probably fetch the original event first to see its calendar.
-                 // But `formData.calendars` contains the desired target calendars.
-
-                 // Let's just say: The first calendar in the list gets the original ID (if it was an edit).
-                 // The rest get new IDs.
-                 // This effectively "moves" it to the first selected calendar if the original calendar was unchecked,
-                 // or updates it if it was checked.
-                 // And creates copies for the rest.
-                 currentId = originalId;
-            }
-
-            eventData.id = currentId;
-
-            const saved = await this.eventService.save(eventData);
-            if (i === 0) primarySavedEvent = saved;
-
-            // Handle Image for EACH copy if provided
-            const crop = { cropX: 50, cropY: 50 };
-
-            // 1. New File Uploaded
-            if (formData.imageFile && saved) {
-                // Save Original
-                await new Promise((resolve) => {
-                    const r = new FileReader();
-                    r.onload = async (e) => {
-                        await this.imageService.saveEventImage(saved.id, e.target.result, crop, false); // isEdited = false
-                        resolve();
-                    };
-                    r.readAsDataURL(formData.imageFile);
-                });
-
-                // Save Cropped (if available)
-                if (formData.croppedDataUrl) {
-                     await this.imageService.saveEventImage(saved.id, formData.croppedDataUrl, crop, true); // isEdited = true
-                }
-            }
-            // 2. Existing image edited (cropped) but no new file
-            else if (formData.croppedDataUrl && saved) {
-                 await this.imageService.saveEventImage(saved.id, formData.croppedDataUrl, crop, true); // isEdited = true
-            }
-
-            else if (originalId && saved && saved.id !== originalId) {
-                // If we are copying (new ID) from an existing event (originalId), check if original had an image and copy it?
-                // The service might not automatically copy image data since it's separate.
-                // But the user didn't explicitly ask for deep copy of images on creation.
-                // If they upload a new file, we save it to all.
-                // If they don't upload a new file, we leave it.
-                // If we want to copy existing image to new copies, we'd need to fetch existing image.
-                // Let's skip that complexity for now unless requested.
-            }
-        }
-
-        this.refreshCalendarEvents();
-    }
-
-    async saveCalendarImage(calendarName, dataUrl, crop) {
-        await this.imageService.saveCalendarImage(calendarName, dataUrl, crop);
-        this.refreshCalendarResources(); // Re-render headers
-        this.refreshCalendarEvents();
-    }
-
-    async saveCategoryImage(scope, category, dataUrl, crop) {
-        await this.imageService.saveCategoryImage(scope, category, dataUrl, crop);
-
-        // Mark matching events as having an image
-        const matchingEvents = this.eventService.getAll().filter(ev =>
-            ev.name.toLowerCase() === category.trim().toLowerCase() &&
-            (scope === 'all' || ev.calendar === scope)
-        );
-        for (const ev of matchingEvents) {
-            await this.eventService.save({ ...ev, hasImage: true });
-        }
-
-        this.refreshCalendarEvents();
-    }
-    // #endregion
-
-    // #region Utilities
-    formatEventForCalendar(ev) {
-        const isRecurring = ev.recurrence && ev.recurrence.type !== 'none';
-        const fcEvent = {
-            id: ev.id,
-            title: ev.name,
-            editable: !isRecurring,
-            resourceId: ev.calendar,
-            allDay: ev.allDay || false,
-            extendedProps: { calendar: ev.calendar }
-        };
-
-        if (isRecurring) {
-            const { type, until, intervalWeeks, days } = ev.recurrence;
-            fcEvent.duration = { milliseconds: new Date(ev.end) - new Date(ev.start) };
-            fcEvent.rrule = {
-                dtstart: ev.start,
-                until: until || null,
-                freq: type === 'daily' ? 'daily' : 'weekly',
-                interval: type === 'biweekly' ? 2 : (intervalWeeks || 1),
-                byweekday: type === 'custom' ? days.map(d => ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'][d]) : undefined
-            };
-        } else {
-            fcEvent.start = ev.start;
-            fcEvent.end = ev.end;
-        }
-
-        return fcEvent;
-    }
-
-    getScrollTimeString() {
-        const { startMinutes } = this.getTimeStripWindow();
-        const h = Math.floor(startMinutes / 60);
-        const m = startMinutes % 60;
-        return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:00`;
-    }
-
-    getTimeStripWindow() {
-        // If in hours view, return restricted window?
-        // Actually, the strip matches the VIEW.
-        // But getMinutesFromY in UI calculation relies on container height.
-        // If we want to align, we should respect the current view's min/max.
-        // But for now, let's keep it simple.
-        return { startMinutes: 0, endMinutes: 24 * 60 };
-    }
-
-    openEventCreationAt(hour, minute) {
-        const baseDate = this.fullCalendar ? this.fullCalendar.getDate() : new Date();
-        const startDate = new Date(baseDate);
-        startDate.setHours(hour, minute, 0, 0);
-
-        const endDate = new Date(startDate.getTime() + 30 * 60000); // +30 minutes
-
-        this.openEventCreationFromRange(startDate, endDate);
-    }
-
-    openEventCreationFromRange(start, end, calendarName, allDay = false) {
-        const defaultCalendar = calendarName || this.calendarService.getAll()[0]?.name || 'Main';
-        const eventData = {
-            id: '',
-            calendar: defaultCalendar,
-            name: '',
-            start: start.toISOString(),
-            end: end.toISOString(),
-            allDay: allDay,
-            recurrence: { type: 'none' }
-        };
-        this.ui.populateEventForm(eventData);
-        this.ui.toggleModal(this.ui.elements.eventOverlay, true);
-    }
-
-    preparePasteEvent(date) {
-        if (!this.clipboard) return;
-
-        // Open modal pre-filled with clipboard data but shifted time
-        const duration = new Date(this.clipboard.end) - new Date(this.clipboard.start);
-        const newStart = new Date(date);
-        const newEnd = new Date(newStart.getTime() + duration);
-
-        const eventData = {
-            ...this.clipboard,
-            id: '', // New ID
-            start: newStart.toISOString(),
-            end: newEnd.toISOString(),
-        };
-
-        // We set the calendar to the clipboard's calendar (or default logic in populate)
-        // populateEventForm handles `calendar` property.
-
-        this.ui.populateEventForm(eventData);
-        this.ui.toggleModal(this.ui.elements.eventOverlay, true);
     }
 
     setOnlineStatus(online) {
@@ -836,7 +469,6 @@ class CalendarApp {
 
         this.ui.showToast('Syncing with MEGA...', 'info');
 
-        // Pass includeDeleted=true to sync everything including tombstones
         const events = this.eventService.getAll(true);
         const calendars = this.calendarService.getAll(true);
         const images = await this.imageService.load(true);
@@ -844,17 +476,7 @@ class CalendarApp {
         const syncedData = await this.megaSync.sync(events, calendars, images);
 
         if (syncedData) {
-            // Update local state with merged data
             if (syncedData.events) {
-                // Clear existing and add merged events
-                // Ideally we update specifically, but clearing and re-adding to DB ensures consistency
-                // But we must respect the service implementation.
-                // EventService uses an array and writes to DB individually on save.
-                // We should probably expose a "setAll" or iterate.
-
-                // Let's implement a batch update in services or just iterate
-                // For now, simple iteration.
-                // Ideally services should support bulk update.
                 this.eventService.events = syncedData.events;
                 await this.db.clear('events');
                 for (const ev of syncedData.events) {
@@ -864,7 +486,6 @@ class CalendarApp {
 
             if (syncedData.calendars) {
                 this.calendarService.calendars = syncedData.calendars;
-                // Maintain visibility set
                 syncedData.calendars.forEach(cal => {
                     if (cal.isVisible !== false) this.calendarService.visibleCalendars.add(cal.name);
                     else this.calendarService.visibleCalendars.delete(cal.name);
@@ -885,15 +506,11 @@ class CalendarApp {
             }
 
             this.ui.showToast('Sync complete!', 'success');
-
-            // Refresh UI
             this.ui.renderCalendars(this.calendarService.getAll(), this.calendarService.getVisible());
-            this.refreshCalendarResources();
             this.refreshCalendarEvents();
 
         } else {
             this.ui.showToast('Sync failed.', 'error');
         }
     }
-    // #endregion
 }
