@@ -12,10 +12,13 @@ class CalendarView {
         this.onEventClick = null;
         this.onDateClick = null; // Single click on cell
         this.onRangeSelect = null; // Drag selection
+        this.onEventSelected = null; // When event is selected via long press
+        this.onEventAction = null; // Action triggered from event button
 
         // View State
         this.startHour = 0;
         this.endHour = 24;
+        this.selectedEventId = null;
     }
 
     setView(viewType) {
@@ -102,13 +105,26 @@ class CalendarView {
 
         if (this.viewType === 'dayGridMonth') {
             start.setDate(1);
-            start.setDate(1 - start.getDay()); // Go back to Sunday
+            // Monday start:
+            const day = start.getDay();
+            const diff = day === 0 ? 6 : day - 1;
+            start.setDate(start.getDate() - diff); // Go back to Monday
+
             end.setMonth(end.getMonth() + 1);
             end.setDate(0);
-            end.setDate(end.getDate() + (6 - end.getDay())); // Go to Saturday
+            // End on Sunday
+            const endDay = end.getDay();
+            const endDiff = endDay === 0 ? 0 : 7 - endDay;
+            end.setDate(end.getDate() + endDiff);
         } else if (this.viewType === 'timeGridWeek') {
-            start.setDate(start.getDate() - start.getDay());
-            end.setDate(end.getDate() + (6 - end.getDay()));
+            const day = start.getDay();
+            const diff = day === 0 ? 6 : day - 1;
+            start.setDate(start.getDate() - diff);
+
+            // Correctly calculate end date by creating a new Date object from start
+            const endWeek = new Date(start);
+            endWeek.setDate(start.getDate() + 6);
+            end.setTime(endWeek.getTime());
             end.setHours(23, 59, 59, 999);
         } else {
             // Day or Hours view
@@ -260,7 +276,7 @@ class CalendarView {
         const grid = document.createElement('div');
         grid.className = 'calendar-grid-month';
 
-        const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
         const headerRow = document.createElement('div');
         headerRow.className = 'calendar-header-row';
         days.forEach(d => {
@@ -337,6 +353,9 @@ class CalendarView {
     }
 
     renderTimeGrid(events, dayCount) {
+        const visibleCalendars = Array.from(this.calendarService.getVisible()).sort();
+        const subColCount = visibleCalendars.length || 1;
+
         const container = document.createElement('div');
         container.className = 'time-grid-container';
 
@@ -356,8 +375,33 @@ class CalendarView {
 
             const colHeader = document.createElement('div');
             colHeader.className = 'col-header';
-            colHeader.innerHTML = `<span>${d.toLocaleDateString(undefined, {weekday: 'short'})}</span> <span>${d.getDate()}</span>`;
-             if (this.isToday(d)) colHeader.classList.add('is-today');
+
+            const dateDisplay = document.createElement('div');
+            dateDisplay.innerHTML = `<span>${d.toLocaleDateString(undefined, {weekday: 'short'})}</span> <span>${d.getDate()}</span>`;
+            if (this.isToday(d)) dateDisplay.style.color = 'var(--primary-color)';
+            colHeader.appendChild(dateDisplay);
+
+            if (subColCount > 1) {
+                const subRow = document.createElement('div');
+                subRow.style.display = 'flex';
+                subRow.style.width = '100%';
+                subRow.style.marginTop = '4px';
+                subRow.style.borderTop = '1px solid rgba(0,0,0,0.05)';
+
+                visibleCalendars.forEach(calName => {
+                    const calTitle = document.createElement('div');
+                    calTitle.style.flex = '1';
+                    calTitle.textContent = calName;
+                    calTitle.style.fontSize = '0.7rem';
+                    calTitle.style.overflow = 'hidden';
+                    calTitle.style.textOverflow = 'ellipsis';
+                    calTitle.style.whiteSpace = 'nowrap';
+                    calTitle.style.textAlign = 'center';
+                    calTitle.title = calName;
+                    subRow.appendChild(calTitle);
+                });
+                colHeader.appendChild(subRow);
+            }
             header.appendChild(colHeader);
         }
         container.appendChild(header);
@@ -388,18 +432,31 @@ class CalendarView {
             row.appendChild(timeLabel);
 
             for(let d=0; d<dayCount; d++) {
-                 const cell = document.createElement('div');
-                 cell.className = 'time-cell';
-                 cell.dataset.date = days[d].toISOString();
-                 cell.dataset.hour = h;
+                 const dayWrapper = document.createElement('div');
+                 dayWrapper.style.flex = '1';
+                 dayWrapper.style.display = 'flex';
+                 dayWrapper.style.borderRight = '1px solid rgba(0,0,0,0.05)';
 
-                 cell.onclick = () => {
-                     const date = new Date(days[d]);
-                     date.setHours(h);
-                     if (this.onDateClick) this.onDateClick(date);
-                 };
+                 for(let c=0; c<subColCount; c++) {
+                     const cell = document.createElement('div');
+                     cell.className = 'time-cell';
+                     cell.dataset.date = days[d].toISOString();
+                     cell.dataset.hour = h;
+                     cell.style.flex = '1';
+                     if (c < subColCount - 1) {
+                         cell.style.borderRight = '1px solid rgba(0,0,0,0.02)';
+                     }
 
-                 row.appendChild(cell);
+                     const calName = visibleCalendars[c];
+                     cell.onclick = () => {
+                         const date = new Date(days[d]);
+                         date.setHours(h);
+                         if (this.onDateClick) this.onDateClick(date, calName);
+                     };
+
+                     dayWrapper.appendChild(cell);
+                 }
+                 row.appendChild(dayWrapper);
             }
             content.appendChild(row);
         }
@@ -417,6 +474,9 @@ class CalendarView {
              });
 
              dayEvents.forEach(ev => {
+                 const calIdx = visibleCalendars.indexOf(ev.calendar);
+                 if (calIdx === -1) return;
+
                  const el = this.createEventElement(ev, 'timegrid');
 
                  const s = new Date(ev.start);
@@ -439,13 +499,6 @@ class CalendarView {
                  const viewStartMin = Math.max(startMin, offsetMin);
                  const viewEndMin = Math.min(endMin, endH * 60);
 
-                 // Height of one hour slot
-                 // We don't have access to CSS var easily here unless we compute it.
-                 // But we can use calc or percentage?
-                 // Using calc with --slot-height is best.
-                 // top = (minutes / 60) * height
-                 // Relative to container top.
-
                  const topHours = (viewStartMin - offsetMin) / 60;
                  const durHours = (viewEndMin - viewStartMin) / 60;
 
@@ -453,8 +506,11 @@ class CalendarView {
                  el.style.height = `calc(${durHours} * var(--slot-height, 50px))`;
 
                  // Correct width and position accounting for 50px gutter
-                 el.style.left = `calc(50px + ${dayIdx} * ((100% - 50px) / ${dayCount}))`;
-                 el.style.width = `calc((100% - 50px) / ${dayCount})`;
+                 const totalCols = dayCount * subColCount;
+                 const globalColIdx = dayIdx * subColCount + calIdx;
+
+                 el.style.left = `calc(50px + ${globalColIdx} * ((100% - 50px) / ${totalCols}))`;
+                 el.style.width = `calc((100% - 50px) / ${totalCols})`;
 
                  eventsLayer.appendChild(el);
              });
@@ -469,8 +525,6 @@ class CalendarView {
         // Scroll logic (only for regular views)
         if (this.viewType !== 'hoursView') {
              body.scrollTop = (8 - startH) * 50;
-             // Note: 50 is hardcoded default here, but if slot-height changes it might be off.
-             // But for non-hoursView, height is default 50.
         }
 
         return container;
@@ -479,8 +533,13 @@ class CalendarView {
     createEventElement(ev, type) {
         const el = document.createElement('div');
         el.className = 'calendar-event';
-        // Add ID for context menu
-        el.dataset.eventId = ev.originalId || ev.id;
+
+        const eventId = ev.originalId || ev.id;
+        el.dataset.eventId = eventId;
+
+        if (this.selectedEventId === eventId) {
+            el.classList.add('selected');
+        }
 
         if (type === 'month') el.classList.add('month-event');
         else el.classList.add('time-event');
@@ -514,14 +573,77 @@ class CalendarView {
 
         el.appendChild(content);
 
+        // Action Buttons (visible when selected)
+        if (this.selectedEventId === eventId) {
+            const actions = document.createElement('div');
+            actions.className = 'event-actions';
+
+            const createBtn = (icon, action, label) => {
+                const btn = document.createElement('button');
+                btn.className = 'event-action-btn';
+                btn.innerHTML = icon;
+                btn.title = label;
+                btn.onclick = (e) => {
+                    e.stopPropagation();
+                    action();
+                };
+                return btn;
+            };
+
+            // Up (Earlier)
+            actions.appendChild(createBtn('▲', () => this.triggerAction('moveTime', eventId, -15), 'Move 15m earlier'));
+            // Down (Later)
+            actions.appendChild(createBtn('▼', () => this.triggerAction('moveTime', eventId, 15), 'Move 15m later'));
+            // Left (Prev Day)
+            actions.appendChild(createBtn('◀', () => this.triggerAction('moveDay', eventId, -1), 'Previous Day'));
+            // Right (Next Day)
+            actions.appendChild(createBtn('▶', () => this.triggerAction('moveDay', eventId, 1), 'Next Day'));
+            // Delete
+            actions.appendChild(createBtn('🗑', () => this.triggerAction('delete', eventId), 'Delete'));
+
+            el.appendChild(actions);
+        }
+
+        // Long press logic
+        let pressTimer;
+        const startPress = (e) => {
+            // e.stopPropagation();
+            pressTimer = setTimeout(() => {
+                this.selectedEventId = eventId;
+                if (this.onEventSelected) this.onEventSelected(eventId);
+                this.render(); // Re-render to show selection
+                el.dataset.longPressed = 'true';
+            }, 500); // 500ms long press
+        };
+        const cancelPress = () => {
+            clearTimeout(pressTimer);
+        };
+
+        el.addEventListener('mousedown', startPress);
+        el.addEventListener('touchstart', startPress, {passive: true});
+        el.addEventListener('mouseup', cancelPress);
+        el.addEventListener('mouseleave', cancelPress);
+        el.addEventListener('touchend', cancelPress);
+        el.addEventListener('touchcancel', cancelPress);
+
         el.onclick = (e) => {
             e.stopPropagation();
+            if (el.dataset.longPressed === 'true') {
+                delete el.dataset.longPressed;
+                return;
+            }
             if (this.onEventClick) this.onEventClick({
-                event: { id: ev.originalId || ev.id }
+                event: { id: eventId }
             });
         };
 
         return el;
+    }
+
+    triggerAction(action, id, param) {
+        if (this.onEventAction) {
+            this.onEventAction(action, id, param);
+        }
     }
 
     isToday(date) {
