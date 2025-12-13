@@ -111,6 +111,33 @@ class CalendarApp {
 
             if (!this.calendarView) return;
 
+            // Check if an event is selected
+            if (this.calendarView.selectedEventId) {
+                switch (e.key) {
+                    case 'ArrowLeft':
+                        e.preventDefault();
+                        this.handleEventAction('moveDay', this.calendarView.selectedEventId, -1);
+                        return;
+                    case 'ArrowRight':
+                        e.preventDefault();
+                        this.handleEventAction('moveDay', this.calendarView.selectedEventId, 1);
+                        return;
+                    case 'ArrowUp':
+                        e.preventDefault();
+                        this.handleEventAction('moveTime', this.calendarView.selectedEventId, -15);
+                        return;
+                    case 'ArrowDown':
+                        e.preventDefault();
+                        this.handleEventAction('moveTime', this.calendarView.selectedEventId, 15);
+                        return;
+                    case 'Delete':
+                    case 'Backspace':
+                        e.preventDefault();
+                        this.handleEventAction('delete', this.calendarView.selectedEventId);
+                        return;
+                }
+            }
+
             switch (e.key) {
                 case 'ArrowLeft':
                     this.calendarView.prev();
@@ -145,6 +172,7 @@ class CalendarApp {
 
         this.calendarView.onEventClick = this.handleEventClick.bind(this);
         this.calendarView.onDateClick = this.handleDateClick.bind(this);
+        this.calendarView.onEventAction = this.handleEventAction.bind(this);
 
         document.getElementById('prev-btn').onclick = () => this.calendarView.prev();
         document.getElementById('next-btn').onclick = () => this.calendarView.next();
@@ -155,6 +183,50 @@ class CalendarApp {
 
     refreshCalendarResources() {
        this.refreshCalendarEvents();
+    }
+
+    async handleEventAction(action, eventId, param) {
+        const event = this.eventService.find(eventId);
+        if (!event) return;
+
+        if (action === 'delete') {
+            if (confirm(`Delete "${event.name}"?`)) {
+                 await this.eventService.delete(eventId);
+                 this.calendarView.selectedEventId = null;
+                 this.refreshCalendarEvents();
+            }
+            return;
+        }
+
+        let newStart = new Date(event.start);
+        let newEnd = new Date(event.end);
+
+        if (action === 'moveTime') {
+             // param is minutes
+             newStart.setTime(newStart.getTime() + param * 60000);
+             newEnd.setTime(newEnd.getTime() + param * 60000);
+        } else if (action === 'moveDay') {
+             // param is days
+             newStart.setDate(newStart.getDate() + param);
+             newEnd.setDate(newEnd.getDate() + param);
+        }
+
+        const updatedEvent = { ...event, start: newStart.toISOString(), end: newEnd.toISOString() };
+        await this.eventService.save(updatedEvent);
+
+        this.ensureEventVisible(updatedEvent);
+        this.refreshCalendarEvents();
+    }
+
+    ensureEventVisible(event) {
+        const range = this.calendarView.getVisibleRange();
+        const start = new Date(event.start);
+
+        if (start < range.start) {
+            this.calendarView.prev();
+        } else if (start > range.end) {
+            this.calendarView.next();
+        }
     }
 
     refreshCalendarEvents() {
