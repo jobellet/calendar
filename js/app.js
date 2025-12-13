@@ -24,6 +24,13 @@ class CalendarApp {
         this.hoursViewMode = 'auto'; // 'auto' or 'manual'
         this.hoursViewCenterTime = null;
         this.notificationInterval = null;
+        this.notificationTimeout = null;
+        this.upcomingNotificationCache = {
+            events: [],
+            windowStart: null,
+            windowEnd: null,
+            expiresAt: 0
+        };
         this.notifiedEvents = new Set();
     }
 
@@ -48,11 +55,13 @@ class CalendarApp {
         if (this.notificationInterval) {
             clearInterval(this.notificationInterval);
         }
+        if (this.notificationTimeout) {
+            clearTimeout(this.notificationTimeout);
+        }
 
         const settings = this.settingsService.get();
         if (settings.voiceEnabled) {
-            this.checkNotifications();
-            this.notificationInterval = setInterval(() => this.checkNotifications(), 5000);
+            this.scheduleNotificationCheck(0);
         }
     }
 
@@ -61,11 +70,13 @@ class CalendarApp {
         if (!settings.voiceEnabled) return;
 
         const now = new Date();
-        const events = this.eventService.getAll();
+        const leadMs = settings.voiceLeadTime * 60000;
+        const windowPastMs = 15 * 60000;
+        const windowFutureMs = (settings.voiceLeadTime + 30) * 60000;
+
+        const events = this.getUpcomingEventsForNotifications(now, windowPastMs, windowFutureMs);
 
         events.forEach(event => {
-            if (event.deleted || event.allDay) return;
-
             const start = new Date(event.start);
             const diffMs = start - now;
 
@@ -92,6 +103,72 @@ class CalendarApp {
                  }
             }
         });
+
+        this.scheduleNextNotification(now, events.length > 0, leadMs, windowFutureMs);
+    }
+
+    getUpcomingEventsForNotifications(now, windowPastMs, windowFutureMs) {
+        const nowMs = now.getTime();
+        const windowStart = new Date(nowMs - windowPastMs);
+        const windowEnd = new Date(nowMs + windowFutureMs);
+
+        const cacheValid =
+            this.upcomingNotificationCache.windowStart &&
+            this.upcomingNotificationCache.windowEnd &&
+            this.upcomingNotificationCache.windowStart <= now &&
+            this.upcomingNotificationCache.windowEnd >= now &&
+            this.upcomingNotificationCache.expiresAt > nowMs;
+
+        if (cacheValid) {
+            return this.upcomingNotificationCache.events;
+        }
+
+        const events = this.eventService.getAll().filter(event => {
+            if (event.deleted || event.allDay) return false;
+            const start = new Date(event.start);
+            return start >= windowStart && start <= windowEnd;
+        });
+
+        this.upcomingNotificationCache = {
+            events,
+            windowStart,
+            windowEnd,
+            expiresAt: nowMs + 30000
+        };
+
+        return events;
+    }
+
+    scheduleNotificationCheck(delayMs) {
+        this.notificationTimeout = setTimeout(() => this.checkNotifications(), delayMs);
+    }
+
+    scheduleNextNotification(now, hasNearbyEvents, leadMs, windowFutureMs) {
+        if (this.notificationTimeout) {
+            clearTimeout(this.notificationTimeout);
+        }
+
+        if (hasNearbyEvents) {
+            this.scheduleNotificationCheck(5000);
+            return;
+        }
+
+        const events = this.eventService.getAll().filter(event => !event.deleted && !event.allDay);
+        let nextStartDiff = null;
+        events.forEach(event => {
+            const start = new Date(event.start).getTime() - now.getTime();
+            if (start >= 0 && (nextStartDiff === null || start < nextStartDiff)) {
+                nextStartDiff = start;
+            }
+        });
+
+        let delayMs = 60000; // Default to 1 minute when nothing is nearby
+        if (nextStartDiff !== null) {
+            const untilWindow = Math.max(nextStartDiff - windowFutureMs + leadMs, 0);
+            delayMs = Math.max(60000, Math.min(untilWindow, 300000));
+        }
+
+        this.scheduleNotificationCheck(delayMs);
     }
 
     speak(eventName, minutesBefore) {
