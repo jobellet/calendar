@@ -6,7 +6,7 @@ class CalendarView {
         this.imageService = imageService;
 
         this.currentDate = new Date();
-        this.viewType = 'dayGridMonth'; // Default
+        this.viewType = 'hoursView'; // Default changed to hoursView
 
         // Callbacks
         this.onEventClick = null;

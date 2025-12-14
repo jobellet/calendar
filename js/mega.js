@@ -47,7 +47,7 @@ class MegaSync {
         console.log('[MegaSync] Logged out.');
     }
 
-    async sync(localEvents, localCalendars, localImages) {
+    async sync(localEvents, localCalendars, localImages, localSettings) {
         if (!this.storage) {
             console.warn('[MegaSync] Cannot sync: Not logged in');
             return null;
@@ -82,9 +82,9 @@ class MegaSync {
                 }
             }
 
-            // 2. Merge Data (Events, Calendars, Images Metadata)
+            // 2. Merge Data (Events, Calendars, Images Metadata, Settings)
             const merged = this.mergeData(
-                { events: localEvents, calendars: localCalendars, images: localImages },
+                { events: localEvents, calendars: localCalendars, images: localImages, settings: localSettings },
                 remoteData
             );
 
@@ -98,6 +98,7 @@ class MegaSync {
             const dataToSave = {
                 events: merged.events,
                 calendars: merged.calendars,
+                settings: merged.settings,
                 images: merged.images.map(img => ({
                     ...img,
                     url: null // Strip URL for storage
@@ -240,6 +241,7 @@ class MegaSync {
 
         const mergedEvents = this.mergeCollections(local.events, remote.events);
         const mergedCalendars = this.mergeCollections(local.calendars, remote.calendars, 'name');
+        const mergedSettings = this.mergeSettings(local.settings, remote.settings);
 
         // Use true to preserve local URLs if filenames match
         const mergedImages = this.mergeCollections(local.images, remote.images, 'id', true);
@@ -247,8 +249,16 @@ class MegaSync {
         return {
             events: mergedEvents,
             calendars: mergedCalendars,
-            images: mergedImages
+            images: mergedImages,
+            settings: mergedSettings
         };
+    }
+
+    mergeSettings(local, remote) {
+        if (!remote) return local;
+        if (!local) return remote;
+        if ((remote.updatedAt || 0) > (local.updatedAt || 0)) return remote;
+        return local;
     }
 
     mergeCollections(localList, remoteList, key = 'id', preserveLocalUrl = false) {

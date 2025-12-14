@@ -34,6 +34,12 @@ class SettingsService {
 
     save(newSettings) {
         this.settings = this.applyDefaults({ ...this.settings, ...newSettings });
+        this.settings.updatedAt = Date.now();
+        localStorage.setItem('calendar_settings', JSON.stringify(this.settings));
+    }
+
+    updateFromSync(remoteSettings) {
+        this.settings = this.applyDefaults(remoteSettings);
         localStorage.setItem('calendar_settings', JSON.stringify(this.settings));
     }
 
