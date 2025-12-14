@@ -47,6 +47,10 @@ class CalendarApp {
 
         this.initCalendarView();
 
+        // Set default view to Hours
+        this.changeView('hoursView');
+        this.ui.setActiveViewButton(this.ui.elements.viewSelector.querySelector('button[data-view="hoursView"]'));
+
         this.setupKeyboardShortcuts();
         this.ui.setSyncStatus(false);
         this.restartNotificationLoop();
@@ -635,13 +639,35 @@ class CalendarApp {
 
     openTaskCreation() {
         const now = new Date();
-        const end = new Date(now.getTime() + 60 * 60000);
+
+        // Find the end of the current task queue to set as start time
+        // getScheduled returns scheduled versions of tasks (start times adjusted for queue)
+        const scheduledTasks = this.eventService.getScheduled(false, now)
+            .filter(ev => (ev.type || 'event') === 'task' && !ev.done);
+
+        let start = new Date(now);
+
+        if (scheduledTasks.length > 0) {
+            // We want to append to the end of the *entire* schedule of tasks,
+            // so we look at the last task returned by getScheduled (which sorts by time).
+            const lastTask = scheduledTasks[scheduledTasks.length - 1];
+            if (lastTask) {
+                // Use the end of the last task as the start of the new one
+                start = new Date(lastTask.end);
+                // Ensure we don't go back in time
+                if (start < now) {
+                     start = new Date(now);
+                }
+            }
+        }
+
+        const end = new Date(start.getTime() + 60 * 60000);
         const defaultCalendar = this.calendarService.getAll()[0]?.name || 'Main';
         const eventData = {
             id: '',
             calendar: defaultCalendar,
             name: '',
-            start: now.toISOString(),
+            start: start.toISOString(),
             end: end.toISOString(),
             allDay: false,
             type: 'task',
@@ -710,8 +736,9 @@ class CalendarApp {
         const events = this.eventService.getAll(true);
         const calendars = this.calendarService.getAll(true);
         const images = await this.imageService.load(true);
+        const settings = this.settingsService.get();
 
-        const syncedData = await this.megaSync.sync(events, calendars, images);
+        const syncedData = await this.megaSync.sync(events, calendars, images, settings);
 
         if (syncedData) {
             if (syncedData.events) {
@@ -743,6 +770,13 @@ class CalendarApp {
                 }
             }
 
+            if (syncedData.settings) {
+                this.settingsService.updateFromSync(syncedData.settings);
+                // Also update UI settings immediately if needed, although UI mostly reads on demand.
+                // But active settings like language might need refresh?
+                // For now, next action will use new settings.
+            }
+
             this.ui.showToast('Sync complete!', 'success');
             this.ui.renderCalendars(this.calendarService.getAll(), this.calendarService.getVisible());
             this.refreshCalendarEvents();
@@ -755,8 +789,15 @@ class CalendarApp {
     getTaskQueue() {
         const now = new Date();
         return this.eventService.getScheduled(false, now)
-            .filter(ev => (ev.type || 'event') === 'task' && !ev.done && new Date(ev.start) <= now)
-            .sort((a, b) => (a.orderIndex || 0) - (b.orderIndex || 0));
+            .filter(ev => (ev.type || 'event') === 'task' && !ev.done) // Removed start <= now to show future tasks
+            .sort((a, b) => {
+                 // Sort by orderIndex first (for ready tasks), then by start time (for future tasks)
+                 // getScheduled already returns them in a decent order (ready tasks sorted by orderIndex, then future tasks)
+                 // But merging them into one list:
+                 // Ready tasks have dynamic start times now. Future tasks have fixed start times.
+                 // So sorting by start time should generally work for the whole list now!
+                 return new Date(a.start) - new Date(b.start);
+            });
     }
 
     async reorderTasks(orderIds) {

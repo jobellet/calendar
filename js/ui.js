@@ -802,13 +802,6 @@ class UI {
         }
         if (this.elements.customRecurrenceOptions) this.elements.customRecurrenceOptions.style.display = recurrenceDisplay;
 
-        if (isTask) {
-            const today = new Date();
-            const dateStr = today.toISOString().slice(0, 10);
-            const timeStr = today.toTimeString().slice(0, 5);
-            if (this.elements.eventDate) this.elements.eventDate.value = dateStr;
-            if (this.elements.eventStartTime) this.elements.eventStartTime.value = timeStr;
-        }
     }
 
     getEventFormData() {
