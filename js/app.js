@@ -339,9 +339,12 @@ class CalendarApp {
 
     async handleEventChange(updatedEvent) {
         // Handles drag-and-drop updates
-        // We could verify overlaps here if needed, or just save.
-        // Assuming user drag is an explicit override.
         await this.eventService.save(updatedEvent);
+
+        if ((updatedEvent.type || 'event') === 'task') {
+             await this.eventService.resolveTaskOverlaps(updatedEvent);
+        }
+
         this.refreshCalendarEvents();
     }
 
@@ -530,14 +533,26 @@ class CalendarApp {
         if (!formData) return;
 
         // Check for overlaps (simple check)
-        const overlaps = this.eventService.checkOverlap(formData.start, formData.end, formData.calendars, formData.id);
-        if (overlaps.length > 0) {
-            const msg = `Warning: This event overlaps with ${overlaps.length} existing event(s):\n` +
-                        overlaps.map(e => `- ${e.name} (${new Date(e.start).toLocaleTimeString()} - ${new Date(e.end).toLocaleTimeString()})`).join('\n') +
-                        `\n\nSave anyway?`;
-            if (!confirm(msg)) {
-                return;
-            }
+        // If it's a task, we might auto-resolve overlaps instead of warning.
+        // But the user might manually set a time that conflicts.
+        // If manually set, maybe we just warn.
+        // But if it's a task, we should probably "push" things if needed?
+        // Prompt says: "Shifting a task manually push the other tasks".
+        // Saving from form is also a "manual" action (creating or editing).
+        // Let's apply push logic for tasks.
+
+        const isTask = formData.type === 'task';
+
+        if (!isTask) {
+             const overlaps = this.eventService.checkOverlap(formData.start, formData.end, formData.calendars, formData.id);
+             if (overlaps.length > 0) {
+                const msg = `Warning: This event overlaps with ${overlaps.length} existing event(s):\n` +
+                            overlaps.map(e => `- ${e.name} (${new Date(e.start).toLocaleTimeString()} - ${new Date(e.end).toLocaleTimeString()})`).join('\n') +
+                            `\n\nSave anyway?`;
+                if (!confirm(msg)) {
+                    return;
+                }
+             }
         }
 
         const calendars = formData.calendars;
@@ -561,6 +576,10 @@ class CalendarApp {
 
             const saved = await this.eventService.save(eventData);
             if (i === 0) primarySavedEvent = saved;
+
+            if (isTask && saved) {
+                await this.eventService.resolveTaskOverlaps(saved);
+            }
 
             const crop = { cropX: 50, cropY: 50 };
 
@@ -635,36 +654,22 @@ class CalendarApp {
 
     openTaskCreation() {
         const now = new Date();
-
-        // Find the end of the current task queue to set as start time
-        // getScheduled returns scheduled versions of tasks (start times adjusted for queue)
-        const scheduledTasks = this.eventService.getScheduled(false, now)
-            .filter(ev => (ev.type || 'event') === 'task' && !ev.done);
-
-        let start = new Date(now);
-
-        if (scheduledTasks.length > 0) {
-            // We want to append to the end of the *entire* schedule of tasks,
-            // so we look at the last task returned by getScheduled (which sorts by time).
-            const lastTask = scheduledTasks[scheduledTasks.length - 1];
-            if (lastTask) {
-                // Use the end of the last task as the start of the new one
-                start = new Date(lastTask.end);
-                // Ensure we don't go back in time
-                if (start < now) {
-                     start = new Date(now);
-                }
-            }
-        }
-
-        const end = new Date(start.getTime() + 60 * 60000);
         const defaultCalendar = this.calendarService.getAll()[0]?.name || 'Main';
+
+        // Find first available slot of 60 minutes
+        // We might want to pass the selected calendar if we knew it, but here we default.
+        // Or we can let the user choose the calendar in the form, and THEN recalculate start?
+        // But the form needs a start time.
+        // Let's use the default calendar for initial calculation.
+
+        const slot = this.eventService.findAvailableSlot(60, now, defaultCalendar);
+
         const eventData = {
             id: '',
             calendar: defaultCalendar,
             name: '',
-            start: start.toISOString(),
-            end: end.toISOString(),
+            start: slot.start.toISOString(),
+            end: slot.end.toISOString(),
             allDay: false,
             type: 'task',
             durationMinutes: 60,
@@ -783,22 +788,12 @@ class CalendarApp {
     }
 
     getTaskQueue() {
-        const now = new Date();
-        return this.eventService.getScheduled(false, now)
-            .filter(ev => (ev.type || 'event') === 'task' && !ev.done) // Removed start <= now to show future tasks
-            .sort((a, b) => {
-                 // Sort by orderIndex first (for ready tasks), then by start time (for future tasks)
-                 // getScheduled already returns them in a decent order (ready tasks sorted by orderIndex, then future tasks)
-                 // But merging them into one list:
-                 // Ready tasks have dynamic start times now. Future tasks have fixed start times.
-                 // So sorting by start time should generally work for the whole list now!
-                 return new Date(a.start) - new Date(b.start);
-            });
+        // Deprecated
+        return [];
     }
 
     async reorderTasks(orderIds) {
-        await this.eventService.updateTaskOrder(orderIds);
-        this.refreshCalendarEvents();
+        // Deprecated
     }
 
     async markTaskDone(taskId) {
