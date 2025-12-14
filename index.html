@@ -48,10 +48,16 @@
             </div>
 
             <!-- Hours View Controls (Hidden by default) -->
-            <div id="hours-view-controls" style="display: none; margin-top: 10px; gap: 5px; justify-content: center;">
-                <button id="hours-up-btn" class="nav-btn" title="Shift Earlier">▲</button>
-                <button id="hours-reset-btn" class="nav-btn" title="Reset to Now">●</button>
-                <button id="hours-down-btn" class="nav-btn" title="Shift Later">▼</button>
+            <div id="hours-view-controls" style="display: none; margin-top: 10px; gap: 5px; justify-content: center; flex-wrap: wrap;">
+                <div style="display: flex; gap: 5px;">
+                    <button id="hours-up-btn" class="nav-btn" title="Shift Earlier">▲</button>
+                    <button id="hours-reset-btn" class="nav-btn" title="Reset to Now">●</button>
+                    <button id="hours-down-btn" class="nav-btn" title="Shift Later">▼</button>
+                </div>
+                <div style="display: flex; gap: 5px;">
+                     <button id="hours-zoom-out-btn" class="nav-btn" title="Zoom Out (Squeeze)">-</button>
+                     <button id="hours-zoom-in-btn" class="nav-btn" title="Zoom In (Stretch)">+</button>
+                </div>
             </div>
 
             <div id="calendars-section">

@@ -22,6 +22,7 @@ class CalendarApp {
         this.calendarView = null;
 
         this.hoursViewMode = 'auto'; // 'auto' or 'manual'
+        this.hoursSlotHeight = 50; // Default slot height
         this.hoursViewCenterTime = null;
         this.notificationInterval = null;
         this.notificationTimeout = null;
@@ -452,6 +453,16 @@ class CalendarApp {
         }
 
         // Window: -15 minutes to +90 minutes (105 mins total)
+        // Adjust the window duration based on slot height to fill screen roughly?
+        // Actually, if we use fixed slot height, the window size (in hours) determines if it scrolls or not.
+        // But the requirement is "Hours View includes interactive buttons... for manually shifting the visible time range".
+        // And "panning view also stretches time. fix this bug".
+        // So we want the slot height to be fixed (or manually controlled), and the range (start/end) to be controlled by panning/auto.
+
+        // We stick to the 105 mins window for now, or maybe we should let it fill the screen if we are not stretching?
+        // If we don't stretch, and we show only 105 mins, we might have empty space or overflow depending on height.
+        // If we want to solve "panning stretches time", we must decouple slot height from the window fit.
+
         const START_OFFSET_MS = 15 * 60 * 1000;
         const END_OFFSET_MS = 90 * 60 * 1000;
         const DURATION_MS = START_OFFSET_MS + END_OFFSET_MS;
@@ -473,27 +484,12 @@ class CalendarApp {
         const endHour = endMs / 3600000;
 
         this.calendarView.setRange(startHour, endHour);
+        this.calendarView.setSlotHeight(this.hoursSlotHeight);
+    }
 
-        // Dynamic slot height
-        if (this.ui.elements.calendarEl) {
-            const calendarHeight = this.ui.elements.calendarEl.clientHeight;
-            const toolbar = this.ui.elements.calendarEl.querySelector('.calendar-header');
-            const header = this.ui.elements.calendarEl.querySelector('.time-grid-header');
-
-            const toolbarHeight = toolbar ? toolbar.offsetHeight : 50;
-            const headerHeight = header ? header.offsetHeight : 30;
-
-            const availableHeight = calendarHeight - toolbarHeight - headerHeight - 10;
-
-            // Total hours visible = endHour - startHour
-            const totalHours = endHour - startHour;
-
-            // We want availableHeight to cover totalHours
-            // Slot Height (per hour) = availableHeight / totalHours
-            const newSlotHeight = Math.max(20, availableHeight / totalHours);
-
-            this.calendarView.setSlotHeight(newSlotHeight);
-        }
+    zoomHoursView(change) {
+        this.hoursSlotHeight = Math.max(20, Math.min(200, this.hoursSlotHeight + change));
+        this.calendarView.setSlotHeight(this.hoursSlotHeight);
     }
 
     shiftHoursView(minutes) {

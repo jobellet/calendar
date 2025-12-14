@@ -76,6 +76,8 @@ class UI {
             hoursUpBtn: document.getElementById('hours-up-btn'),
             hoursDownBtn: document.getElementById('hours-down-btn'),
             hoursResetBtn: document.getElementById('hours-reset-btn'),
+            hoursZoomInBtn: document.getElementById('hours-zoom-in-btn'),
+            hoursZoomOutBtn: document.getElementById('hours-zoom-out-btn'),
             // Mobile elements
             mobileMenuToggle: document.querySelector('.mobile-menu-toggle'),
             sidebarOverlay: document.getElementById('sidebar-overlay'),
@@ -176,6 +178,16 @@ class UI {
         if (this.elements.hoursResetBtn) {
             this.elements.hoursResetBtn.addEventListener('click', () => {
                  this.app.resetHoursView();
+            });
+        }
+        if (this.elements.hoursZoomInBtn) {
+            this.elements.hoursZoomInBtn.addEventListener('click', () => {
+                this.app.zoomHoursView(10);
+            });
+        }
+        if (this.elements.hoursZoomOutBtn) {
+            this.elements.hoursZoomOutBtn.addEventListener('click', () => {
+                this.app.zoomHoursView(-10);
             });
         }
 
