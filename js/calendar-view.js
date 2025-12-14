@@ -787,6 +787,9 @@ class CalendarView {
                      this.selectedEventId = eventId;
                      if (this.onEventSelected) this.onEventSelected(eventId);
                      this.render();
+                 } else {
+                     // If already selected, open edit modal
+                     if (this.onEventClick) this.onEventClick({ event: { id: eventId } });
                  }
             }
         };
