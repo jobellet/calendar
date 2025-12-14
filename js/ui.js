@@ -791,9 +791,12 @@ class UI {
     toggleTaskFields() {
         const isTask = this.elements.eventType?.value === 'task';
 
-        if (this.elements.eventAllDay) {
-            this.elements.eventAllDay.checked = false;
-            this.elements.eventAllDay.disabled = isTask;
+        if (this.elements.eventAllDay && !isTask) {
+            // Only reset if switching TO task? No, user might want to switch type and keep all-day.
+            // But usually we don't want to force reset.
+            // However, the previous code forced unchecked and disabled.
+            // We just want to remove the disable.
+            this.elements.eventAllDay.disabled = false;
         }
 
         const recurrenceDisplay = isTask ? 'none' : 'block';
