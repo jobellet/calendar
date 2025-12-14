@@ -386,6 +386,14 @@ class UI {
             this.elements.eventDate.addEventListener('change', () => this.updateEndFromDuration());
         }
 
+        if (this.elements.eventEndTime) {
+            this.elements.eventEndTime.addEventListener('input', () => this.updateDurationFromEnd());
+        }
+
+        if (this.elements.eventEndDate) {
+            this.elements.eventEndDate.addEventListener('change', () => this.updateDurationFromEnd());
+        }
+
         this.elements.openImagePanelBtn.addEventListener('click', () => {
             this.toggleModal(this.elements.imageManagementPanel, true);
             this.refreshImagePanelSelectors();
@@ -923,6 +931,31 @@ class UI {
         this.elements.eventEndTime.value = end.toTimeString().slice(0, 5);
         if (this.elements.eventEndDate) {
             this.elements.eventEndDate.value = end.toISOString().slice(0, 10);
+        }
+    }
+
+    updateDurationFromEnd() {
+        const isAllDay = this.elements.eventAllDay?.checked;
+        if (isAllDay) return;
+
+        const date = this.elements.eventDate?.value;
+        const startTime = this.elements.eventStartTime?.value;
+        const endDate = this.elements.eventEndDate?.value;
+        const endTime = this.elements.eventEndTime?.value;
+
+        if (!date || !startTime || !endDate || !endTime) return;
+
+        const start = new Date(`${date}T${startTime}:00`);
+        const end = new Date(`${endDate}T${endTime}:00`);
+
+        let diffMs = end - start;
+        if (diffMs < 0) return;
+
+        const minutes = Math.round(diffMs / 60000);
+        if (Number.isNaN(minutes)) return;
+
+        if (this.elements.eventDuration) {
+            this.elements.eventDuration.value = minutes;
         }
     }
 
