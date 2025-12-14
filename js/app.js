@@ -192,6 +192,7 @@ class CalendarApp {
 
     setupKeyboardShortcuts() {
         document.addEventListener('keydown', (e) => {
+            // Ignore if focus is in an input
             if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName) || document.activeElement.isContentEditable) {
                 return;
             }
@@ -222,35 +223,43 @@ class CalendarApp {
                         e.preventDefault();
                         this.handleEventAction('delete', this.calendarView.selectedEventId);
                         return;
+                    case 'Escape':
+                         // Deselect event
+                         this.calendarView.selectedEventId = null;
+                         this.refreshCalendarEvents();
+                         return;
                 }
             }
 
             // Global shortcuts
-            if (e.key === 'm' || e.key === 'M') {
+            const key = e.key.toLowerCase();
+
+            if (key === 'm') {
                  this.changeView('dayGridMonth');
                  this.ui.setActiveViewButton(this.ui.elements.viewSelector.querySelector('button[data-view="dayGridMonth"]'));
-            } else if (e.key === 'w' || e.key === 'W') {
+            } else if (key === 'w') {
                  this.changeView('timeGridWeek');
                  this.ui.setActiveViewButton(this.ui.elements.viewSelector.querySelector('button[data-view="timeGridWeek"]'));
-            } else if (e.key === 'd' || e.key === 'D') {
+            } else if (key === 'd') {
                  this.changeView('timeGridDay');
                  this.ui.setActiveViewButton(this.ui.elements.viewSelector.querySelector('button[data-view="timeGridDay"]'));
-            } else if (e.key === 'h' || e.key === 'H') {
+            } else if (key === 'h') {
                  this.changeView('hoursView');
                  this.ui.setActiveViewButton(this.ui.elements.viewSelector.querySelector('button[data-view="hoursView"]'));
-            } else if (e.key === 't' || e.key === 'T') {
+            } else if (key === 't') {
                  this.calendarView.today();
-            } else if (e.key === 'n' || e.key === 'N') {
+            } else if (key === 'n') {
+                 e.preventDefault();
                  // Create new event at current time rounded to next 30 min
                  const now = new Date();
                  let minutes = Math.ceil(now.getMinutes() / 30) * 30;
                  let hours = now.getHours();
                  if (minutes === 60) { minutes = 0; hours++; }
                  this.openEventCreationAt(hours, minutes);
-            } else if (e.key === 's' || e.key === 'S') {
+            } else if (key === 's') {
                  // Settings
                  if (this.ui.elements.settingsBtn) this.ui.elements.settingsBtn.click();
-            } else if (e.key === 'i' || e.key === 'I') {
+            } else if (key === 'i') {
                  // Images
                  if (this.ui.elements.openImagePanelBtn) this.ui.elements.openImagePanelBtn.click();
             }
@@ -455,19 +464,10 @@ class CalendarApp {
             this.hoursViewCenterTime = now;
         }
 
-        // Window: -15 minutes to +90 minutes (105 mins total)
-        // Adjust the window duration based on slot height to fill screen roughly?
-        // Actually, if we use fixed slot height, the window size (in hours) determines if it scrolls or not.
-        // But the requirement is "Hours View includes interactive buttons... for manually shifting the visible time range".
-        // And "panning view also stretches time. fix this bug".
-        // So we want the slot height to be fixed (or manually controlled), and the range (start/end) to be controlled by panning/auto.
-
-        // We stick to the 105 mins window for now, or maybe we should let it fill the screen if we are not stretching?
-        // If we don't stretch, and we show only 105 mins, we might have empty space or overflow depending on height.
-        // If we want to solve "panning stretches time", we must decouple slot height from the window fit.
-
-        const START_OFFSET_MS = 15 * 60 * 1000;
-        const END_OFFSET_MS = 90 * 60 * 1000;
+        // Increased window to 6 hours for better visibility
+        // -2 hours to +4 hours
+        const START_OFFSET_MS = 120 * 60 * 1000; // 2 hours
+        const END_OFFSET_MS = 240 * 60 * 1000; // 4 hours
         const DURATION_MS = START_OFFSET_MS + END_OFFSET_MS;
 
         let startMs = centerMs - START_OFFSET_MS;
@@ -653,23 +653,27 @@ class CalendarApp {
     }
 
     openTaskCreation() {
+        // Use standard "Next 30 mins" logic similar to events, instead of findAvailableSlot
         const now = new Date();
         const defaultCalendar = this.calendarService.getAll()[0]?.name || 'Main';
 
-        // Find first available slot of 60 minutes
-        // We might want to pass the selected calendar if we knew it, but here we default.
-        // Or we can let the user choose the calendar in the form, and THEN recalculate start?
-        // But the form needs a start time.
-        // Let's use the default calendar for initial calculation.
+        let minutes = Math.ceil(now.getMinutes() / 30) * 30;
+        let hours = now.getHours();
+        if (minutes === 60) {
+            minutes = 0;
+            hours += 1;
+        }
 
-        const slot = this.eventService.findAvailableSlot(60, now, defaultCalendar);
+        const start = new Date(now);
+        start.setHours(hours, minutes, 0, 0);
+        const end = new Date(start.getTime() + 60 * 60000); // Default 1 hour duration
 
         const eventData = {
             id: '',
             calendar: defaultCalendar,
             name: '',
-            start: slot.start.toISOString(),
-            end: slot.end.toISOString(),
+            start: start.toISOString(),
+            end: end.toISOString(),
             allDay: false,
             type: 'task',
             durationMinutes: 60,
