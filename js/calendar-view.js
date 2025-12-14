@@ -756,15 +756,16 @@ class CalendarView {
         }
 
         // Interaction Logic
-        let pressTimer;
-        let isLongPress = false;
         let startX, startY;
+        let isDragging = false;
+        let hasMoved = false;
 
         const handleStart = (e) => {
             if (e.target.closest('.event-actions')) return;
 
-            isLongPress = false;
-            // Store coordinates
+            isDragging = false;
+            hasMoved = false;
+
             if (e.type === 'touchstart') {
                 startX = e.touches[0].clientX;
                 startY = e.touches[0].clientY;
@@ -772,25 +773,33 @@ class CalendarView {
                 startX = e.clientX;
                 startY = e.clientY;
             }
-
-            pressTimer = setTimeout(() => {
-                isLongPress = true;
-                this.startEventDrag(ev, el, e, startX, startY);
-            }, 500); // 500ms long press
         };
 
         const handleMove = (e) => {
+             // Only track move if mouse is down (which we know if we are in this handler and logic below)
+             // But for touch, this fires continuously.
+             // We need to check if we should start drag.
+
+             // Wait, for mousedown we need to attach mousemove to window or something?
+             // Actually, we can check e.buttons for mouse.
+        };
+
+        // We use global move listener attached on start to handle drag init
+
+        const onMoveCheck = (e) => {
              const cx = e.touches ? e.touches[0].clientX : e.clientX;
              const cy = e.touches ? e.touches[0].clientY : e.clientY;
-             // If moved significantly, cancel long press (allow scrolling)
-             if (Math.abs(cx - startX) > 10 || Math.abs(cy - startY) > 10) {
-                 clearTimeout(pressTimer);
+
+             if (Math.abs(cx - startX) > 5 || Math.abs(cy - startY) > 5) {
+                 hasMoved = true;
+                 this.startEventDrag(ev, el, e, startX, startY);
+                 cleanupListeners();
              }
         };
 
-        const handleEnd = (e) => {
-            clearTimeout(pressTimer);
-            if (!isLongPress && !this.dragState) {
+        const onUpCheck = (e) => {
+             cleanupListeners();
+             if (!hasMoved && !this.dragState) {
                  if (e.target.closest('.event-actions')) return;
 
                  // Select Event
@@ -802,18 +811,29 @@ class CalendarView {
                      // If already selected, open edit modal
                      if (this.onEventClick) this.onEventClick({ event: { id: eventId } });
                  }
-            }
+             }
         };
 
-        el.addEventListener('mousedown', handleStart);
-        el.addEventListener('touchstart', handleStart, {passive: true});
+        const cleanupListeners = () => {
+             document.removeEventListener('mousemove', onMoveCheck);
+             document.removeEventListener('touchmove', onMoveCheck);
+             document.removeEventListener('mouseup', onUpCheck);
+             document.removeEventListener('touchend', onUpCheck);
+        };
 
-        el.addEventListener('mousemove', handleMove);
-        el.addEventListener('touchmove', handleMove, {passive: true});
+        el.addEventListener('mousedown', (e) => {
+            if (e.target.closest('.event-actions')) return;
+            handleStart(e);
+            document.addEventListener('mousemove', onMoveCheck);
+            document.addEventListener('mouseup', onUpCheck);
+        });
 
-        el.addEventListener('mouseup', handleEnd);
-        el.addEventListener('touchend', handleEnd);
-        el.addEventListener('mouseleave', () => clearTimeout(pressTimer));
+        el.addEventListener('touchstart', (e) => {
+            if (e.target.closest('.event-actions')) return;
+            handleStart(e);
+            document.addEventListener('touchmove', onMoveCheck, {passive: false});
+            document.addEventListener('touchend', onUpCheck);
+        }, {passive: true});
 
         // Prevent click prop
         el.onclick = (e) => e.stopPropagation();

@@ -5,6 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Family Calendar | Beautiful, Smooth, Intuitive</title>
+    <meta name="description" content="A beautiful, smooth, and intuitive family calendar application.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -40,23 +41,23 @@
                 <button id="logout-btn" class="logout-btn hidden" title="Logout">🚪</button>
             </div>
 
-            <div id="view-selector">
-                <button type="button" data-view="dayGridMonth">Month</button>
-                <button type="button" data-view="timeGridWeek">Week</button>
-                <button type="button" data-view="timeGridDay">Day</button>
-                <button type="button" data-view="hoursView">Hours</button>
+            <div id="view-selector" role="group" aria-label="Calendar Views">
+                <button type="button" data-view="dayGridMonth" aria-label="Month View">Month</button>
+                <button type="button" data-view="timeGridWeek" aria-label="Week View">Week</button>
+                <button type="button" data-view="timeGridDay" aria-label="Day View">Day</button>
+                <button type="button" data-view="hoursView" aria-label="Hours View">Hours</button>
             </div>
 
             <!-- Hours View Controls (Hidden by default) -->
             <div id="hours-view-controls" style="display: none; margin-top: 10px; gap: 5px; justify-content: center; flex-wrap: wrap;">
                 <div style="display: flex; gap: 5px;">
-                    <button id="hours-up-btn" class="nav-btn" title="Shift Earlier">▲</button>
-                    <button id="hours-reset-btn" class="nav-btn" title="Reset to Now">●</button>
-                    <button id="hours-down-btn" class="nav-btn" title="Shift Later">▼</button>
+                    <button id="hours-up-btn" class="nav-btn" title="Shift Earlier" aria-label="Shift time earlier">▲</button>
+                    <button id="hours-reset-btn" class="nav-btn" title="Reset to Now" aria-label="Reset to current time">●</button>
+                    <button id="hours-down-btn" class="nav-btn" title="Shift Later" aria-label="Shift time later">▼</button>
                 </div>
                 <div style="display: flex; gap: 5px;">
-                     <button id="hours-zoom-out-btn" class="nav-btn" title="Zoom Out (Squeeze)">-</button>
-                     <button id="hours-zoom-in-btn" class="nav-btn" title="Zoom In (Stretch)">+</button>
+                     <button id="hours-zoom-out-btn" class="nav-btn" title="Zoom Out (Squeeze)" aria-label="Zoom out">-</button>
+                     <button id="hours-zoom-in-btn" class="nav-btn" title="Zoom In (Stretch)" aria-label="Zoom in">+</button>
                 </div>
             </div>
 
@@ -81,15 +82,15 @@
         <main id="main-content">
             <div class="calendar-header">
                 <div class="calendar-nav">
-                    <button id="prev-btn" class="nav-btn">←</button>
-                    <button id="today-btn" class="nav-btn">Today</button>
-                    <button id="next-btn" class="nav-btn">→</button>
+                    <button id="prev-btn" class="nav-btn" aria-label="Previous">←</button>
+                    <button id="today-btn" class="nav-btn" aria-label="Today">Today</button>
+                    <button id="next-btn" class="nav-btn" aria-label="Next">→</button>
                 </div>
                 <h2 id="calendar-title">Month Year</h2>
             </div>
             <div id="calendar"></div>
             <!-- Mobile Floating Action Button -->
-            <button class="fab-add-event">+</button>
+            <button class="fab-add-event" aria-label="Add New Event">+</button>
         </main>
 
         <!-- Right Sidebar: time picker area -->
@@ -283,7 +284,7 @@
                     </label>
                     <label id="event-start-time-label">
                         Start Time
-                        <input type="time" id="event-start-time" required>
+                        <input type="time" id="event-start-time" step="60" required>
                     </label>
 
                     <label id="event-end-date-label" style="display:none;">
@@ -292,7 +293,7 @@
                     </label>
                     <label id="event-end-time-label">
                         End Time
-                        <input type="time" id="event-end-time" required>
+                        <input type="time" id="event-end-time" step="60" required>
                     </label>
                     <label id="event-duration-label">
                         Duration (minutes)

@@ -10,33 +10,39 @@
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    background: rgba(255, 255, 255, 0.9);
-    border-radius: 20px;
-    padding: 2px 6px;
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 28px;
+    padding: 6px 10px;
     display: flex;
-    gap: 4px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    gap: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
     z-index: 101;
     pointer-events: auto;
 }
 
 .event-action-btn {
-    background: transparent;
-    border: none;
+    background: #f0f0f0;
+    border: 1px solid #ddd;
     cursor: pointer;
-    font-size: 12px;
-    padding: 4px;
+    font-size: 16px;
+    padding: 0;
     color: #333;
     border-radius: 50%;
-    width: 24px;
-    height: 24px;
+    width: 36px;
+    height: 36px;
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: background 0.2s;
+    transition: all 0.2s;
 }
 
 .event-action-btn:hover {
-    background: rgba(0,0,0,0.1);
+    background: #fff;
     color: var(--primary-color);
+    transform: scale(1.1);
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+}
+
+.event-action-btn:active {
+    transform: scale(0.95);
 }

@@ -811,10 +811,9 @@ class UI {
     toggleTaskFields() {
         const isTask = this.elements.eventType?.value === 'task';
 
-        if (this.elements.eventAllDay) {
-            this.elements.eventAllDay.checked = false;
-            this.elements.eventAllDay.disabled = isTask;
-        }
+        // Tasks can now be all day, so we don't force uncheck or disable.
+        // We only hide recurrence for tasks as per original logic if desired,
+        // though some tasks might repeat. But user complaint was specifically about All-Day.
 
         const recurrenceDisplay = isTask ? 'none' : 'block';
         if (this.elements.eventRecurrence && this.elements.eventRecurrence.parentElement) {
