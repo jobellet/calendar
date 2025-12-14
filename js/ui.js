@@ -89,7 +89,8 @@ class UI {
             closeAddCalendarModalBtn: document.getElementById('close-add-calendar-modal-btn'),
             addCalendarForm: document.getElementById('add-calendar-form'),
             newCalendarName: document.getElementById('new-calendar-name'),
-            taskQueueList: document.getElementById('task-queue-list'),
+            // Task Queue Container - dynamically find since it might be emptied
+            tasksSection: document.getElementById('tasks-section'),
             addTaskBtn: document.getElementById('add-task-btn'),
         };
     }
@@ -133,24 +134,8 @@ class UI {
             setTimeout(() => document.addEventListener('click', close), 0);
         };
 
-        if (this.elements.calendarEl) {
-            this.elements.calendarEl.addEventListener('contextmenu', (e) => {
-                e.preventDefault();
-                let target = e.target;
-                const contentWrapper = target.closest('.calendar-event');
-
-                if (contentWrapper) {
-                     // Need event ID. We can store it on the element in view render.
-                     // The view sets 'onclick', but we can check data attributes or closure?
-                     // Let's assume view sets data-event-id on the calendar-event element.
-                     // Wait, in `calendar-view.js` I didn't set data attribute yet.
-                     // I should fix that, or just rely on the click handler which I can't access easily here.
-                     // But wait, the view sets `onclick`.
-                     // Let's modify `calendar-view.js` to add `data-event-id`.
-                     // Assuming it's there (I will add it in next step or now).
-                }
-            });
-        }
+        // Attach globally or to specific targets if needed
+        // For task queue, we use click handler on button that creates menu
     }
 
     // ... (Most event listeners are generic enough)
@@ -959,7 +944,134 @@ class UI {
     }
 
     renderTaskQueue(tasks) {
-        // Queue removed.
+        if (!this.elements.tasksSection) return;
+
+        // Ensure we preserve the header/add button
+        let header = this.elements.tasksSection.querySelector('.tasks-header');
+        if (!header) {
+             header = document.createElement('div');
+             header.className = 'tasks-header';
+             const btn = document.createElement('button');
+             btn.id = 'add-task-btn';
+             btn.type = 'button';
+             btn.title = 'Add a new task';
+             btn.style.width = '100%';
+             btn.textContent = '+ Add Task';
+             btn.onclick = () => this.app.openTaskCreation();
+             header.appendChild(btn);
+             this.elements.addTaskBtn = btn;
+        }
+
+        // Use or create a list container
+        let list = this.elements.tasksSection.querySelector('#task-queue-list');
+        if (!list) {
+            list = document.createElement('div');
+            list.id = 'task-queue-list';
+            this.elements.tasksSection.appendChild(list);
+            this.elements.taskQueueList = list;
+        }
+
+        // Clear list content only
+        list.innerHTML = '';
+
+        // Add Overdue Label if we have tasks
+        if (tasks.length > 0) {
+            const label = document.createElement('div');
+            label.className = 'task-queue-label';
+            label.textContent = 'Overdue Tasks';
+            list.appendChild(label);
+        }
+
+        tasks.forEach(task => {
+            const el = document.createElement('div');
+            el.className = 'queue-task-item';
+
+            const info = document.createElement('div');
+            info.className = 'queue-task-info';
+
+            const name = document.createElement('div');
+            name.className = 'queue-task-name';
+            name.textContent = task.name;
+
+            const time = document.createElement('div');
+            time.className = 'queue-task-time';
+            const d = new Date(task.end); // Show end time as deadline
+            time.textContent = `Due: ${d.toLocaleDateString()} ${d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`;
+
+            info.appendChild(name);
+            info.appendChild(time);
+
+            const actions = document.createElement('div');
+            actions.className = 'queue-task-actions';
+
+            // Done Button
+            const doneBtn = document.createElement('button');
+            doneBtn.innerHTML = '✓';
+            doneBtn.className = 'queue-btn done-btn';
+            doneBtn.title = 'Mark as Done';
+            doneBtn.onclick = () => this.app.markTaskDone(task.id);
+
+            // Reschedule Button
+            const schedBtn = document.createElement('button');
+            schedBtn.innerHTML = '🕒';
+            schedBtn.className = 'queue-btn sched-btn';
+            schedBtn.title = 'Reschedule';
+            schedBtn.onclick = (e) => {
+                 // Show context menu
+                 const rect = schedBtn.getBoundingClientRect();
+                 this.showRescheduleMenu(rect.left, rect.bottom, task.id);
+            };
+
+            actions.appendChild(doneBtn);
+            actions.appendChild(schedBtn);
+
+            el.appendChild(info);
+            el.appendChild(actions);
+            list.appendChild(el);
+        });
+
+        // Ensure header is first
+        if (this.elements.tasksSection.firstChild !== header) {
+            this.elements.tasksSection.insertBefore(header, this.elements.tasksSection.firstChild);
+        }
+    }
+
+    showRescheduleMenu(x, y, taskId) {
+        const createMenu = (x, y, options) => {
+            const existing = document.querySelector('.context-menu');
+            if (existing) existing.remove();
+
+            const menu = document.createElement('div');
+            menu.className = 'context-menu glass-panel';
+            menu.style.top = `${y}px`;
+            menu.style.left = `${x}px`;
+
+            options.forEach(opt => {
+                const item = document.createElement('div');
+                item.className = 'context-menu-item';
+                item.textContent = opt.label;
+                item.onclick = (e) => {
+                    e.stopPropagation();
+                    opt.action();
+                    menu.remove();
+                };
+                menu.appendChild(item);
+            });
+
+            document.body.appendChild(menu);
+            const close = () => {
+                menu.remove();
+                document.removeEventListener('click', close);
+            };
+            setTimeout(() => document.addEventListener('click', close), 0);
+        };
+
+        createMenu(x, y, [
+            { label: 'Now', action: () => this.app.rescheduleTask(taskId, 'now') },
+            { label: '+1 Hour', action: () => this.app.rescheduleTask(taskId, 'plus-1h') },
+            { label: 'Tomorrow Morning', action: () => this.app.rescheduleTask(taskId, 'tomorrow') },
+            { label: 'Next Week', action: () => this.app.rescheduleTask(taskId, 'next-week') }
+        ]);
     }
 
     setupLongPressHandlers() {
