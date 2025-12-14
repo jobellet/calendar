@@ -221,6 +221,14 @@ class CalendarApp {
                         e.preventDefault();
                         this.handleEventAction('delete', this.calendarView.selectedEventId);
                         return;
+                    case 'Escape':
+                        // Only deselect if no modal is open
+                        if (!document.querySelector('.overlay.visible')) {
+                            e.preventDefault();
+                            this.calendarView.selectedEventId = null;
+                            this.calendarView.render();
+                        }
+                        return;
                 }
             }
 
@@ -246,6 +254,7 @@ class CalendarApp {
                  let hours = now.getHours();
                  if (minutes === 60) { minutes = 0; hours++; }
                  this.openEventCreationAt(hours, minutes);
+                 e.preventDefault(); // Prevent type-ahead if any
             } else if (e.key === 's' || e.key === 'S') {
                  // Settings
                  if (this.ui.elements.settingsBtn) this.ui.elements.settingsBtn.click();
@@ -451,9 +460,9 @@ class CalendarApp {
             this.hoursViewCenterTime = now;
         }
 
-        // Window: -15 minutes to +90 minutes (105 mins total)
-        const START_OFFSET_MS = 15 * 60 * 1000;
-        const END_OFFSET_MS = 90 * 60 * 1000;
+        // Window: -2 hours to +4 hours (6 hours total) for better context
+        const START_OFFSET_MS = 120 * 60 * 1000;
+        const END_OFFSET_MS = 240 * 60 * 1000;
         const DURATION_MS = START_OFFSET_MS + END_OFFSET_MS;
 
         let startMs = centerMs - START_OFFSET_MS;

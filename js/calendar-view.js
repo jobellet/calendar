@@ -765,7 +765,7 @@ class CalendarView {
             pressTimer = setTimeout(() => {
                 isLongPress = true;
                 this.startEventDrag(ev, el, e, startX, startY);
-            }, 500); // 500ms long press
+            }, 250); // 250ms long press
         };
 
         const handleMove = (e) => {
@@ -809,9 +809,11 @@ class CalendarView {
 
     startEventDrag(event, element, originalEvent, startX, startY) {
         if (navigator.vibrate) navigator.vibrate(50);
-        element.style.opacity = '0.5';
+        element.style.opacity = '0.8';
+        element.style.transform = 'scale(1.05)';
         element.style.zIndex = '1000';
         element.style.pointerEvents = 'none';
+        element.style.boxShadow = '0 10px 20px rgba(0,0,0,0.3)';
 
         this.dragState = {
             event: event,
@@ -841,7 +843,7 @@ class CalendarView {
         const dx = clientX - this.dragState.startX;
         const dy = clientY - this.dragState.startY;
 
-        this.dragState.element.style.transform = `translate(${dx}px, ${dy}px)`;
+        this.dragState.element.style.transform = `translate(${dx}px, ${dy}px) scale(1.05)`;
     }
 
     async onDragEnd(e) {
@@ -858,6 +860,7 @@ class CalendarView {
         element.style.zIndex = '';
         element.style.pointerEvents = '';
         element.style.transform = '';
+        element.style.boxShadow = '';
 
         this.dragState = null;
 
