@@ -184,6 +184,26 @@ body {
     color: var(--secondary-color);
 }
 
+.logout-btn {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    border: none;
+    cursor: pointer;
+    font-size: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.2s, background 0.2s;
+    background: #fff0f0;
+    color: var(--danger-color);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.logout-btn:active {
+    transform: scale(0.95);
+}
+
 /* View Selector */
 #view-selector {
     display: flex;
@@ -765,7 +785,7 @@ button[type="button"].cancel-btn:hover {
         background: white;
         transform: translateX(-100%);
         box-shadow: 0 0 50px rgba(0, 0, 0, 0.2);
-        z-index: 1000;
+        z-index: 2100;
         padding-top: 60px;
         /* Space for close btn */
     }
@@ -780,7 +800,7 @@ button[type="button"].cancel-btn:hover {
         inset: 0;
         background: rgba(0, 0, 0, 0.5);
         backdrop-filter: blur(4px);
-        z-index: 900;
+        z-index: 2050;
         opacity: 0;
         visibility: hidden;
         transition: opacity 0.3s;
@@ -849,14 +869,19 @@ button[type="button"].cancel-btn:hover {
         position: absolute;
         top: 15px;
         right: 15px;
-        background: transparent;
-        border: none;
-        font-size: 28px;
-        line-height: 1;
+        background: rgba(255, 255, 255, 0.9);
+        border: 1px solid rgba(0,0,0,0.05);
+        border-radius: 50%;
+        font-size: 24px;
+        width: 40px;
+        height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
         color: var(--text-muted);
         cursor: pointer;
-        padding: 5px;
-        z-index: 10;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        z-index: 2150;
     }
 
     #calendar {
@@ -938,7 +963,7 @@ button[type="button"].cancel-btn:hover {
     font-weight: 600;
     opacity: 0;
     transition: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
-    z-index: 2000;
+    z-index: 3000;
     box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
     pointer-events: none;
 }
