@@ -15,6 +15,7 @@ class CalendarView {
         this.onEventSelected = null; // When event is selected via long press
         this.onEventAction = null; // Action triggered from event button
         this.onEventChange = null; // When event is modified (e.g. dragged)
+        this.onScroll = null; // New callback for custom scrolling (panning time)
 
         // View State
         this.startHour = 0;
@@ -422,6 +423,65 @@ class CalendarView {
         const body = document.createElement('div');
         body.className = 'time-grid-body';
 
+        // Mobile Panning & Long Press Logic
+        let touchStartY = 0;
+        let isPanning = false;
+        let longPressTimer = null;
+
+        body.addEventListener('touchstart', (e) => {
+            if (e.touches.length !== 1) return;
+            const target = e.target;
+            // Allow events to handle their own touches if needed
+            if (target.closest('.calendar-event')) return;
+
+            touchStartY = e.touches[0].clientY;
+            isPanning = false;
+
+            // Long Press for Creation on empty cells
+            longPressTimer = setTimeout(() => {
+                 const touch = e.touches[0];
+                 const el = document.elementFromPoint(touch.clientX, touch.clientY);
+                 const cell = el ? el.closest('.time-cell') : null;
+                 if (cell) {
+                      // We need to trigger the logic that was in onmousedown
+                      // We can simulate it by calling the handler directly if we can access it
+                      // But the handler is defined below in the loop.
+                      // Since we are defining this listener before creating cells, we can't easily access the closures.
+                      // Alternative: Dispatch a mousedown event?
+                      const mouseEvent = new MouseEvent('mousedown', {
+                          bubbles: true,
+                          cancelable: true,
+                          view: window,
+                          clientX: touch.clientX,
+                          clientY: touch.clientY
+                      });
+                      cell.dispatchEvent(mouseEvent);
+                 }
+            }, 500);
+
+        }, {passive: false}); // Non-passive to allow preventDefault if needed
+
+        body.addEventListener('touchmove', (e) => {
+             if (e.touches.length !== 1) return;
+             const dy = touchStartY - e.touches[0].clientY;
+
+             if (Math.abs(dy) > 10) {
+                 clearTimeout(longPressTimer);
+                 isPanning = true;
+
+                 // If we are in Hours View and it's custom scrolling
+                 if (this.viewType === 'hoursView') {
+                      e.preventDefault(); // Stop native scroll
+                      if (this.onScroll) this.onScroll(dy);
+                      touchStartY = e.touches[0].clientY; // Reset for relative delta
+                 }
+             }
+        }, {passive: false});
+
+        body.addEventListener('touchend', () => {
+             clearTimeout(longPressTimer);
+        });
+
         const content = document.createElement('div');
         content.className = 'time-grid-content';
 
@@ -740,6 +800,10 @@ class CalendarView {
             actions.appendChild(createBtn('✎', () => {
                 if (this.onEventClick) this.onEventClick({ event: { id: eventId } });
             }, 'Edit Event'));
+
+            if ((ev.type || 'event') === 'task') {
+                actions.appendChild(createBtn(ev.done ? '✖' : '✓', () => this.triggerAction('toggleDone', eventId), ev.done ? 'Mark as Undone' : 'Mark as Done'));
+            }
 
             // Up (Earlier)
             actions.appendChild(createBtn('▲', () => this.triggerAction('moveTime', eventId, -15), 'Move 15m earlier'));

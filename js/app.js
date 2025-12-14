@@ -44,7 +44,7 @@ class CalendarApp {
 
         this.ui.init(this);
         this.ui.renderCalendars(calendars, visibleCalendars);
-        this.ui.renderTaskQueue(this.getTaskQueue());
+        this.ui.renderTaskQueue(this.getOverdueTasks());
 
         this.initCalendarView();
 
@@ -301,6 +301,15 @@ class CalendarApp {
         this.calendarView.onRangeSelect = this.handleRangeSelect.bind(this); // Bind range select
         this.calendarView.onEventAction = this.handleEventAction.bind(this);
         this.calendarView.onEventChange = this.handleEventChange.bind(this);
+        this.calendarView.onScroll = (dy) => {
+            // dy is pixels. 50px = 60 minutes.
+            // minutes = dy * (60/50) = dy * 1.2
+            // Sensitive scroll:
+            const minutes = Math.round(dy * 1.5);
+            if (minutes !== 0) {
+                 this.shiftHoursView(minutes);
+            }
+        };
 
         document.getElementById('prev-btn').onclick = () => this.calendarView.prev();
         document.getElementById('next-btn').onclick = () => this.calendarView.next();
@@ -323,6 +332,14 @@ class CalendarApp {
                  this.calendarView.selectedEventId = null;
                  this.refreshCalendarEvents();
             }
+            return;
+        }
+
+        if (action === 'toggleDone') {
+            event.done = !event.done;
+            event.updatedAt = Date.now();
+            await this.eventService.save(event);
+            this.refreshCalendarEvents();
             return;
         }
 
@@ -372,7 +389,7 @@ class CalendarApp {
         if (this.calendarView) {
             this.calendarView.render();
         }
-        this.ui.renderTaskQueue(this.getTaskQueue());
+        this.ui.renderTaskQueue(this.getOverdueTasks());
     }
 
     handleEventClick(info) {
@@ -791,13 +808,20 @@ class CalendarApp {
         }
     }
 
-    getTaskQueue() {
-        // Deprecated
-        return [];
-    }
+    getOverdueTasks() {
+        const now = new Date();
+        const allEvents = this.eventService.getAll();
+        const visibleCalendars = this.calendarService.getVisible();
 
-    async reorderTasks(orderIds) {
-        // Deprecated
+        return allEvents.filter(ev => {
+            if (!visibleCalendars.has(ev.calendar)) return false;
+            if (ev.deleted) return false;
+            if ((ev.type || 'event') !== 'task') return false;
+            if (ev.done) return false;
+
+            const end = new Date(ev.end);
+            return end < now;
+        }).sort((a, b) => new Date(a.end) - new Date(b.end));
     }
 
     async markTaskDone(taskId) {
@@ -806,6 +830,40 @@ class CalendarApp {
         task.done = true;
         task.updatedAt = Date.now();
         await this.eventService.save(task);
+        this.refreshCalendarEvents();
+    }
+
+    async rescheduleTask(taskId, mode) {
+        const task = this.eventService.find(taskId);
+        if (!task) return;
+
+        const now = new Date();
+        let newStart = new Date();
+
+        if (mode === 'now') {
+            newStart = now;
+            // Round to nearest 15 mins
+            newStart.setMinutes(Math.ceil(newStart.getMinutes() / 15) * 15, 0, 0);
+        } else if (mode === 'tomorrow') {
+            newStart.setDate(newStart.getDate() + 1);
+            newStart.setHours(9, 0, 0, 0);
+        } else if (mode === 'next-week') {
+            newStart.setDate(newStart.getDate() + 7);
+            newStart.setHours(9, 0, 0, 0);
+        } else if (mode === 'plus-1h') {
+             newStart = new Date(task.start);
+             newStart.setHours(newStart.getHours() + 1);
+        }
+
+        const duration = new Date(task.end) - new Date(task.start);
+        const newEnd = new Date(newStart.getTime() + duration);
+
+        task.start = newStart.toISOString();
+        task.end = newEnd.toISOString();
+        task.updatedAt = Date.now();
+
+        await this.eventService.save(task);
+        await this.eventService.resolveTaskOverlaps(task);
         this.refreshCalendarEvents();
     }
 }
