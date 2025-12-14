@@ -476,11 +476,16 @@ class CalendarView {
                          date.setHours(h);
                          date.setMinutes(0, 0, 0);
 
-                         // Snap to 15 min
+                         // Snap logic: HoursView -> 15m, Others (Day) -> 30m
+                         const isHoursView = this.viewType === 'hoursView';
+                         const snapMinutes = isHoursView ? 15 : 30;
+                         const slotsPerHour = 60 / snapMinutes;
+
                          const rect = cell.getBoundingClientRect();
                          const y = e.clientY - rect.top;
                          const ratio = Math.max(0, Math.min(1, y / rect.height));
-                         const minutes = Math.floor(ratio * 4) * 15;
+                         // Use Math.round for nearest
+                         const minutes = Math.round(ratio * slotsPerHour) * snapMinutes;
                          date.setMinutes(minutes);
 
                          this.dragStartDate = date;
@@ -494,11 +499,16 @@ class CalendarView {
                          endDate.setHours(h);
                          endDate.setMinutes(0, 0, 0);
 
-                         // Snap to 15 min
+                         // Snap logic: HoursView -> 15m, Others (Day) -> 30m
+                         const isHoursView = this.viewType === 'hoursView';
+                         const snapMinutes = isHoursView ? 15 : 30;
+                         const slotsPerHour = 60 / snapMinutes;
+
                          const rect = cell.getBoundingClientRect();
                          const y = e.clientY - rect.top;
                          const ratio = Math.max(0, Math.min(1, y / rect.height));
-                         const minutes = Math.floor(ratio * 4) * 15;
+                         // Use Math.round for nearest
+                         const minutes = Math.round(ratio * slotsPerHour) * snapMinutes;
                          endDate.setMinutes(minutes);
 
                          // Check if we are on the same calendar column
@@ -512,9 +522,10 @@ class CalendarView {
                              const temp = s; s = e_; e_ = temp;
                          }
 
-                         // If start == end (single click), default to 1 hour
+                         // If start == end (single click), default duration
                          if (s.getTime() === e_.getTime()) {
-                             e_.setHours(e_.getHours() + 1);
+                             const defaultDuration = isHoursView ? 15 : 60;
+                             e_.setMinutes(e_.getMinutes() + defaultDuration);
                          }
 
                          if (s.getTime() === e_.getTime()) {
