@@ -101,6 +101,45 @@ class UI {
         this.setupEventImageHandling();
         this.setupContextMenu();
         this.setupLongPressHandlers();
+        this.setupMobileSwipe();
+    }
+
+    setupMobileSwipe() {
+        let touchStartX = 0;
+        let touchStartY = 0;
+
+        document.addEventListener('touchstart', (e) => {
+            if (e.touches.length !== 1) return;
+            touchStartX = e.touches[0].clientX;
+            touchStartY = e.touches[0].clientY;
+        }, { passive: true });
+
+        document.addEventListener('touchend', (e) => {
+            if (e.changedTouches.length !== 1) return;
+            const touchEndX = e.changedTouches[0].clientX;
+            const touchEndY = e.changedTouches[0].clientY;
+
+            const dx = touchEndX - touchStartX;
+            const dy = touchEndY - touchStartY;
+
+            // Swipe Right to open sidebar (only if starting from left edge, optional)
+            // Let's make it a general swipe for now, but ensure we aren't scrolling
+            if (Math.abs(dx) > 100 && Math.abs(dy) < 50) {
+                if (dx > 0) {
+                     // Swipe Right
+                     if (touchStartX < 50) { // Only if started near left edge
+                         this.elements.leftSidebar.classList.add('open');
+                         this.elements.sidebarOverlay.classList.add('visible');
+                     }
+                } else {
+                     // Swipe Left - Close if open
+                     if (this.elements.leftSidebar.classList.contains('open')) {
+                         this.elements.leftSidebar.classList.remove('open');
+                         this.elements.sidebarOverlay.classList.remove('visible');
+                     }
+                }
+            }
+        });
     }
 
     setupContextMenu() {
@@ -796,9 +835,10 @@ class UI {
     toggleTaskFields() {
         const isTask = this.elements.eventType?.value === 'task';
 
-        // Tasks can now be all day, so we don't force uncheck or disable.
-        // We only hide recurrence for tasks as per original logic if desired,
-        // though some tasks might repeat. But user complaint was specifically about All-Day.
+        // Ensure All-Day is enabled for tasks
+        if (this.elements.eventAllDay) {
+            this.elements.eventAllDay.disabled = false;
+        }
 
         const recurrenceDisplay = isTask ? 'none' : 'block';
         if (this.elements.eventRecurrence && this.elements.eventRecurrence.parentElement) {

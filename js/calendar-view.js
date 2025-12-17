@@ -819,6 +819,29 @@ class CalendarView {
             el.appendChild(actions);
         }
 
+        // Resize Handles (Bottom only for now for vertical resize)
+        const resizeHandle = document.createElement('div');
+        resizeHandle.className = 'resize-handle';
+        resizeHandle.style.position = 'absolute';
+        resizeHandle.style.bottom = '0';
+        resizeHandle.style.left = '0';
+        resizeHandle.style.width = '100%';
+        resizeHandle.style.height = '10px';
+        resizeHandle.style.cursor = 'ns-resize';
+        resizeHandle.style.zIndex = '10'; // Above content
+        el.appendChild(resizeHandle);
+
+        resizeHandle.addEventListener('mousedown', (e) => {
+            e.stopPropagation(); // Prevent drag start
+            this.startEventResize(ev, el, e);
+        });
+
+        resizeHandle.addEventListener('touchstart', (e) => {
+            e.stopPropagation();
+            this.startEventResize(ev, el, e);
+        }, {passive: false});
+
+
         // Interaction Logic
         let startX, startY;
         let isDragging = false;
@@ -826,6 +849,7 @@ class CalendarView {
 
         const handleStart = (e) => {
             if (e.target.closest('.event-actions')) return;
+            if (e.target.closest('.resize-handle')) return; // Ignore resize handle
 
             isDragging = false;
             hasMoved = false;
@@ -903,6 +927,86 @@ class CalendarView {
         el.onclick = (e) => e.stopPropagation();
 
         return el;
+    }
+
+    startEventResize(event, element, e) {
+        if (navigator.vibrate) navigator.vibrate(50);
+
+        const startY = e.touches ? e.touches[0].clientY : e.clientY;
+        const originalHeight = element.getBoundingClientRect().height;
+
+        this.resizeState = {
+            event: event,
+            element: element,
+            startY: startY,
+            originalHeight: originalHeight,
+            newDuration: null
+        };
+
+        this.resizeMoveHandler = this.onResizeMove.bind(this);
+        this.resizeEndHandler = this.onResizeEnd.bind(this);
+
+        document.addEventListener('mousemove', this.resizeMoveHandler);
+        document.addEventListener('touchmove', this.resizeMoveHandler, { passive: false });
+        document.addEventListener('mouseup', this.resizeEndHandler);
+        document.addEventListener('touchend', this.resizeEndHandler);
+    }
+
+    onResizeMove(e) {
+        if (!this.resizeState) return;
+        if (e.cancelable) e.preventDefault();
+
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        const dy = clientY - this.resizeState.startY;
+
+        const newHeight = Math.max(20, this.resizeState.originalHeight + dy);
+        this.resizeState.element.style.height = `${newHeight}px`;
+
+        // Calculate visual duration
+        // Read slot height from CSS variable or compute it
+        let slotHeight = 50;
+        const container = this.element.querySelector('.time-row');
+        if (container) {
+             slotHeight = container.getBoundingClientRect().height;
+        } else {
+             // Fallback to reading CSS var directly if rows not rendered (unlikely)
+             const computed = getComputedStyle(this.element).getPropertyValue('--slot-height').trim();
+             if (computed) slotHeight = parseInt(computed, 10) || 50;
+        }
+
+        const minutes = (newHeight / slotHeight) * 60;
+        // Snap to 15
+        const snapped = Math.round(minutes / 15) * 15;
+        this.resizeState.newDuration = Math.max(15, snapped);
+    }
+
+    async onResizeEnd(e) {
+         if (!this.resizeState) return;
+
+         document.removeEventListener('mousemove', this.resizeMoveHandler);
+         document.removeEventListener('touchmove', this.resizeMoveHandler);
+         document.removeEventListener('mouseup', this.resizeEndHandler);
+         document.removeEventListener('touchend', this.resizeEndHandler);
+
+         const { event, newDuration } = this.resizeState;
+         this.resizeState = null;
+
+         if (newDuration) {
+             const start = new Date(event.start);
+             const end = new Date(start.getTime() + newDuration * 60000);
+
+             const updatedEvent = {
+                 ...event,
+                 end: end.toISOString()
+             };
+
+             if (this.onEventChange) {
+                 this.onEventChange(updatedEvent);
+             }
+         }
+
+         // Re-render
+         this.render();
     }
 
     startEventDrag(event, element, originalEvent, startX, startY) {
