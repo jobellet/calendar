@@ -146,6 +146,39 @@
         </div>
     </div>
 
+    <!-- Rename Calendar Modal -->
+    <div id="rename-calendar-modal" class="overlay">
+        <div class="modal-box">
+            <button id="close-rename-calendar-modal-btn" type="button" class="close-modal-x">×</button>
+            <h2>Rename Calendar</h2>
+            <form id="rename-calendar-form">
+                <input type="hidden" id="rename-calendar-original-name">
+                <label>
+                    New Name
+                    <input type="text" id="rename-calendar-new-name" required>
+                </label>
+                <button type="submit">Rename</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Merge Calendar Modal -->
+    <div id="merge-calendar-modal" class="overlay">
+        <div class="modal-box">
+            <button id="close-merge-calendar-modal-btn" type="button" class="close-modal-x">×</button>
+            <h2>Merge Calendar</h2>
+            <p>Select a calendar to merge <strong id="merge-source-calendar-name"></strong> into. All events will be moved to the target calendar, and the source calendar will be deleted.</p>
+            <form id="merge-calendar-form">
+                <input type="hidden" id="merge-calendar-source">
+                <label>
+                    Target Calendar
+                    <select id="merge-calendar-target" required></select>
+                </label>
+                <button type="submit">Merge</button>
+            </form>
+        </div>
+    </div>
+
     <!-- Image Management Panel -->
     <div id="image-management-panel" class="overlay">
         <div id="image-management-content" class="modal-box">

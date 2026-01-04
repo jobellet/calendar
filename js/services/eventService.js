@@ -389,6 +389,36 @@ class EventService {
         }
     }
 
+    async updateCalendarName(oldName, newName) {
+        this.historyService.push(this.events);
+        const eventsToUpdate = this.events.filter(e => e.calendar === oldName && !e.deleted);
+        for (const ev of eventsToUpdate) {
+            ev.calendar = newName;
+            ev.updatedAt = Date.now();
+            await this.db.save('events', ev);
+        }
+    }
+
+    async deleteByCalendar(calendarName) {
+        this.historyService.push(this.events);
+        const eventsToDelete = this.events.filter(e => e.calendar === calendarName && !e.deleted);
+        for (const ev of eventsToDelete) {
+            ev.deleted = true;
+            ev.updatedAt = Date.now();
+            await this.db.save('events', ev);
+        }
+    }
+
+    async moveEventsToCalendar(sourceCalName, targetCalName) {
+        this.historyService.push(this.events);
+        const eventsToMove = this.events.filter(e => e.calendar === sourceCalName && !e.deleted);
+        for (const ev of eventsToMove) {
+            ev.calendar = targetCalName;
+            ev.updatedAt = Date.now();
+            await this.db.save('events', ev);
+        }
+    }
+
     async syncExternalEvents(calendarName, newEvents) {
         // Get all existing external events for this calendar
         const existingExternalEvents = this.events.filter(e =>

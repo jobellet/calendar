@@ -92,16 +92,160 @@ class UI {
             // Task Queue Container - dynamically find since it might be emptied
             tasksSection: document.getElementById('tasks-section'),
             addTaskBtn: document.getElementById('add-task-btn'),
+            // Calendar Management Modals
+            renameCalendarModal: document.getElementById('rename-calendar-modal'),
+            closeRenameCalendarModalBtn: document.getElementById('close-rename-calendar-modal-btn'),
+            renameCalendarForm: document.getElementById('rename-calendar-form'),
+            renameCalendarOriginalName: document.getElementById('rename-calendar-original-name'),
+            renameCalendarNewName: document.getElementById('rename-calendar-new-name'),
+
+            mergeCalendarModal: document.getElementById('merge-calendar-modal'),
+            closeMergeCalendarModalBtn: document.getElementById('close-merge-calendar-modal-btn'),
+            mergeCalendarForm: document.getElementById('merge-calendar-form'),
+            mergeCalendarSource: document.getElementById('merge-calendar-source'),
+            mergeCalendarTarget: document.getElementById('merge-calendar-target'),
+            mergeSourceCalendarName: document.getElementById('merge-source-calendar-name'),
         };
     }
 
     init(app) {
         this.app = app;
         this.addEventListeners();
+        this.setupCalendarManagementListeners();
         this.setupEventImageHandling();
         this.setupContextMenu();
         this.setupLongPressHandlers();
         this.setupMobileSwipe();
+    }
+
+    setupCalendarManagementListeners() {
+        // Rename Modal
+        if (this.elements.closeRenameCalendarModalBtn) {
+            this.elements.closeRenameCalendarModalBtn.addEventListener('click', () => {
+                this.toggleModal(this.elements.renameCalendarModal, false);
+            });
+        }
+        if (this.elements.renameCalendarForm) {
+            this.elements.renameCalendarForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const oldName = this.elements.renameCalendarOriginalName.value;
+                const newName = this.elements.renameCalendarNewName.value.trim();
+                if (newName && newName !== oldName) {
+                    await this.app.renameCalendar(oldName, newName);
+                    this.toggleModal(this.elements.renameCalendarModal, false);
+                }
+            });
+        }
+
+        // Merge Modal
+        if (this.elements.closeMergeCalendarModalBtn) {
+            this.elements.closeMergeCalendarModalBtn.addEventListener('click', () => {
+                this.toggleModal(this.elements.mergeCalendarModal, false);
+            });
+        }
+        if (this.elements.mergeCalendarForm) {
+            this.elements.mergeCalendarForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const source = this.elements.mergeCalendarSource.value;
+                const target = this.elements.mergeCalendarTarget.value;
+                if (source && target && source !== target) {
+                    if (confirm(`Are you sure you want to merge "${source}" into "${target}"? "${source}" will be deleted.`)) {
+                         await this.app.mergeCalendars(source, target);
+                         this.toggleModal(this.elements.mergeCalendarModal, false);
+                    }
+                }
+            });
+        }
+    }
+
+    showCalendarContextMenu(x, y, calendarName) {
+        const options = [
+            {
+                label: 'Rename',
+                action: () => this.openRenameCalendarModal(calendarName)
+            },
+            {
+                label: 'Merge into...',
+                action: () => this.openMergeCalendarModal(calendarName)
+            },
+            {
+                label: 'Delete',
+                action: () => {
+                    if (confirm(`Are you sure you want to delete calendar "${calendarName}"? All events will be deleted.`)) {
+                        this.app.deleteCalendar(calendarName);
+                    }
+                }
+            }
+        ];
+
+        // Simple context menu implementation reused
+        const existing = document.querySelector('.context-menu');
+        if (existing) existing.remove();
+
+        const menu = document.createElement('div');
+        menu.className = 'context-menu glass-panel';
+        menu.style.top = `${y}px`;
+        menu.style.left = `${x}px`;
+
+        options.forEach(opt => {
+            const item = document.createElement('div');
+            item.className = 'context-menu-item';
+            item.textContent = opt.label;
+            item.onclick = (e) => {
+                e.stopPropagation();
+                opt.action();
+                menu.remove();
+            };
+            menu.appendChild(item);
+        });
+
+        document.body.appendChild(menu);
+
+        // Adjust position if out of bounds
+        const rect = menu.getBoundingClientRect();
+        if (rect.bottom > window.innerHeight) {
+            menu.style.top = `${y - rect.height}px`;
+        }
+        if (rect.right > window.innerWidth) {
+            menu.style.left = `${x - rect.width}px`;
+        }
+
+        const close = () => {
+            menu.remove();
+            document.removeEventListener('click', close);
+        };
+        setTimeout(() => document.addEventListener('click', close), 0);
+    }
+
+    openRenameCalendarModal(name) {
+        this.elements.renameCalendarOriginalName.value = name;
+        this.elements.renameCalendarNewName.value = name;
+        this.toggleModal(this.elements.renameCalendarModal, true);
+        setTimeout(() => this.elements.renameCalendarNewName.focus(), 100);
+    }
+
+    openMergeCalendarModal(sourceName) {
+        this.elements.mergeCalendarSource.value = sourceName;
+        this.elements.mergeSourceCalendarName.textContent = sourceName;
+
+        // Populate target dropdown
+        const calendars = this.app.calendarService.getAll();
+        this.elements.mergeCalendarTarget.innerHTML = '';
+        calendars.forEach(cal => {
+            if (cal.name !== sourceName) {
+                const opt = document.createElement('option');
+                opt.value = cal.name;
+                opt.textContent = cal.name;
+                this.elements.mergeCalendarTarget.appendChild(opt);
+            }
+        });
+
+        if (this.elements.mergeCalendarTarget.options.length === 0) {
+            alert('No other calendars to merge into.');
+            return;
+        }
+
+        this.toggleModal(this.elements.mergeCalendarModal, true);
     }
 
     setupMobileSwipe() {
@@ -556,10 +700,26 @@ class UI {
             const wrapper = document.createElement('div');
             wrapper.className = 'calendar-item';
             const id = `cal-${calendar.name}`;
-            wrapper.innerHTML = `
+
+            const content = document.createElement('div');
+            content.className = 'calendar-item-content';
+            content.innerHTML = `
                 <input type="checkbox" id="${id}" data-calendar="${calendar.name}" ${visibleCalendars.has(calendar.name) ? 'checked' : ''}>
                 <label for="${id}">${calendar.name}</label>
             `;
+            wrapper.appendChild(content);
+
+            const optionsBtn = document.createElement('button');
+            optionsBtn.className = 'calendar-options-btn';
+            optionsBtn.innerHTML = '⚙️';
+            optionsBtn.title = 'Manage Calendar';
+            optionsBtn.onclick = (e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                this.showCalendarContextMenu(e.clientX, e.clientY, calendar.name);
+            };
+            wrapper.appendChild(optionsBtn);
+
             this.elements.calendarsList.appendChild(wrapper);
         });
 

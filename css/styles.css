@@ -262,6 +262,7 @@ body {
 .calendar-item {
     display: flex;
     align-items: center;
+    justify-content: space-between;
     gap: 10px;
     padding: 8px 12px;
     border-radius: 8px;
@@ -273,6 +274,36 @@ body {
 
 .calendar-item:hover {
     background: rgba(0, 0, 0, 0.03);
+}
+
+.calendar-item-content {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex: 1;
+}
+
+.calendar-options-btn {
+    opacity: 0;
+    background: transparent;
+    border: none;
+    padding: 4px;
+    cursor: pointer;
+    border-radius: 4px;
+    font-size: 14px;
+    color: var(--text-muted);
+    transition: all 0.2s;
+    width: auto !important;
+    box-shadow: none !important;
+}
+
+.calendar-item:hover .calendar-options-btn {
+    opacity: 1;
+}
+
+.calendar-options-btn:hover {
+    background: rgba(0, 0, 0, 0.1);
+    color: var(--text-main);
 }
 
 .calendar-dot {

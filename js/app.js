@@ -691,6 +691,47 @@ class CalendarApp {
         }
     }
 
+    async renameCalendar(oldName, newName) {
+        try {
+            await this.calendarService.rename(oldName, newName);
+            await this.eventService.updateCalendarName(oldName, newName);
+            this.ui.renderCalendars(this.calendarService.getAll(), this.calendarService.getVisible());
+            this.refreshCalendarEvents();
+            this.ui.showToast('Calendar renamed successfully', 'success');
+        } catch (e) {
+            console.error(e);
+            this.ui.showToast('Failed to rename calendar: ' + e.message, 'error');
+        }
+    }
+
+    async deleteCalendar(name) {
+        try {
+            // First mark events as deleted (or delete them?)
+            // Usually we mark events as deleted for sync.
+            await this.eventService.deleteByCalendar(name);
+            await this.calendarService.delete(name);
+            this.ui.renderCalendars(this.calendarService.getAll(), this.calendarService.getVisible());
+            this.refreshCalendarEvents();
+            this.ui.showToast('Calendar deleted', 'success');
+        } catch (e) {
+            console.error(e);
+            this.ui.showToast('Failed to delete calendar', 'error');
+        }
+    }
+
+    async mergeCalendars(sourceName, targetName) {
+        try {
+            await this.eventService.moveEventsToCalendar(sourceName, targetName);
+            await this.calendarService.delete(sourceName);
+            this.ui.renderCalendars(this.calendarService.getAll(), this.calendarService.getVisible());
+            this.refreshCalendarEvents();
+            this.ui.showToast(`Merged ${sourceName} into ${targetName}`, 'success');
+        } catch (e) {
+            console.error(e);
+            this.ui.showToast('Failed to merge calendars', 'error');
+        }
+    }
+
     async setCalendarVisibility(calendarName, isVisible) {
         await this.calendarService.setVisibility(calendarName, isVisible);
         this.refreshCalendarEvents();
