@@ -59,6 +59,158 @@ class CalendarApp {
         this.taskRefreshInterval = setInterval(() => {
             this.refreshCalendarEvents();
         }, 30000);
+
+        this.startCalendarSync();
+    }
+
+    startCalendarSync() {
+        // Initial sync
+        this.syncExternalCalendars();
+
+        // Loop every 30 seconds
+        this.externalSyncInterval = setInterval(() => {
+            this.syncExternalCalendars();
+        }, 30000);
+    }
+
+    async syncExternalCalendars() {
+        const calendars = this.calendarService.getAll();
+        for (const cal of calendars) {
+            if (cal.url && !cal.deleted) {
+                try {
+                    const encodedUrl = encodeURIComponent(cal.url);
+                    const response = await fetch(`/proxy?url=${encodedUrl}`);
+                    if (!response.ok) {
+                        console.error(`Failed to fetch ICS for ${cal.name}: ${response.statusText}`);
+                        continue;
+                    }
+                    const icsData = await response.text();
+
+                    if (typeof ICAL === 'undefined') {
+                        console.error('ICAL.js not loaded');
+                        return;
+                    }
+
+                    const jcalData = ICAL.parse(icsData);
+                    const comp = new ICAL.Component(jcalData);
+                    const vevents = comp.getAllSubcomponents('vevent');
+
+                    const now = new Date();
+                    const rangeStart = new Date(now);
+                    rangeStart.setMonth(now.getMonth() - 1);
+                    const rangeEnd = new Date(now);
+                    rangeEnd.setFullYear(now.getFullYear() + 1);
+
+                    const mappedEvents = [];
+
+                    // Group vevents by UID to handle recurrence exceptions
+                    const eventsByUid = new Map();
+                    vevents.forEach(vevent => {
+                        const uid = vevent.getFirstPropertyValue('uid');
+                        if (!eventsByUid.has(uid)) {
+                            eventsByUid.set(uid, []);
+                        }
+                        eventsByUid.get(uid).push(vevent);
+                    });
+
+                    for (const [uid, veventList] of eventsByUid) {
+                        // Find master event (no recurrence-id)
+                        const masterVEvent = veventList.find(v => !v.getFirstPropertyValue('recurrence-id'));
+
+                        // Find exceptions (with recurrence-id)
+                        const exceptions = veventList.filter(v => v.getFirstPropertyValue('recurrence-id'));
+                        const exceptionDates = new Set();
+
+                        // Map exceptions to their original start dates (RECURRENCE-ID value)
+                        exceptions.forEach(v => {
+                            const rid = v.getFirstPropertyValue('recurrence-id');
+                            if (rid) {
+                                // ICAL.Time to JS Date conversion might vary, stick to string or time comparison
+                                exceptionDates.add(rid.toJSDate().getTime());
+                            }
+                        });
+
+                        // Process Master Event
+                        if (masterVEvent) {
+                            const event = new ICAL.Event(masterVEvent);
+                            if (event.isRecurring()) {
+                                const iterator = event.iterator();
+                                let next;
+                                while ((next = iterator.next())) {
+                                    const jsDate = next.toJSDate();
+                                    if (jsDate > rangeEnd) break;
+
+                                    // Check if this occurrence is overridden by an exception
+                                    if (exceptionDates.has(jsDate.getTime())) {
+                                        continue; // Skip this occurrence
+                                    }
+
+                                    const duration = event.duration;
+                                    const endDate = next.clone();
+                                    endDate.addDuration(duration);
+
+                                    if (jsDate >= rangeStart) {
+                                        mappedEvents.push({
+                                            uid: event.uid,
+                                            name: event.summary,
+                                            start: jsDate.toISOString(),
+                                            end: endDate.toJSDate().toISOString(),
+                                            allDay: event.startDate.isDate,
+                                            type: 'event',
+                                            description: event.description,
+                                            location: event.location,
+                                            recurrence: { type: 'none' }
+                                        });
+                                    }
+                                }
+                            } else {
+                                // Master is single event
+                                const startDate = event.startDate.toJSDate();
+                                if (startDate >= rangeStart && startDate <= rangeEnd && !exceptionDates.has(startDate.getTime())) {
+                                    mappedEvents.push({
+                                        uid: event.uid,
+                                        name: event.summary,
+                                        start: startDate.toISOString(),
+                                        end: event.endDate.toJSDate().toISOString(),
+                                        allDay: event.startDate.isDate,
+                                        type: 'event',
+                                        description: event.description,
+                                        location: event.location,
+                                        recurrence: { type: 'none' }
+                                    });
+                                }
+                            }
+                        }
+
+                        // Process Exceptions (treated as standalone events)
+                        exceptions.forEach(vevent => {
+                            const event = new ICAL.Event(vevent);
+                            const startDate = event.startDate.toJSDate();
+                            if (startDate >= rangeStart && startDate <= rangeEnd) {
+                                mappedEvents.push({
+                                    uid: event.uid,
+                                    name: event.summary,
+                                    start: startDate.toISOString(),
+                                    end: event.endDate.toJSDate().toISOString(),
+                                    allDay: event.startDate.isDate,
+                                    type: 'event',
+                                    description: event.description,
+                                    location: event.location,
+                                    recurrence: { type: 'none' }
+                                });
+                            }
+                        });
+                    }
+
+                    await this.eventService.syncExternalEvents(cal.name, mappedEvents);
+                    this.refreshCalendarEvents();
+                    console.log(`Synced ${mappedEvents.length} events for ${cal.name}`);
+
+                } catch (e) {
+                    console.error(`Error syncing calendar ${cal.name}:`, e);
+                }
+            }
+        }
     }
 
     restartNotificationLoop() {
@@ -527,11 +679,15 @@ class CalendarApp {
         this.updateHoursViewWindow();
     }
 
-    async addCalendar(name) {
-        const newCal = await this.calendarService.add(name);
+    async addCalendar(name, url = null) {
+        const newCal = await this.calendarService.add(name, url);
         if (newCal) {
             this.ui.renderCalendars(this.calendarService.getAll(), this.calendarService.getVisible());
             this.refreshCalendarEvents();
+            if (url) {
+                // Trigger immediate sync for new calendar
+                this.syncExternalCalendars();
+            }
         }
     }
 
