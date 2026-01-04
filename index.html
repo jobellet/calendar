@@ -19,6 +19,7 @@
     <script src="https://unpkg.com/megajs@1/dist/main.browser-umd.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ical.js/1.5.0/ical.min.js"></script>
 </head>
 
 <body>
@@ -350,6 +351,10 @@
                 <label>
                     Calendar Name
                     <input type="text" id="new-calendar-name" required>
+                </label>
+                <label>
+                    Public ICS URL (Optional)
+                    <input type="url" id="new-calendar-url" placeholder="https://calendar.google.com/calendar/ical/...">
                 </label>
                 <button type="submit">Create</button>
             </form>

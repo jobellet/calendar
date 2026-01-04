@@ -388,4 +388,67 @@ class EventService {
             }
         }
     }
+
+    async syncExternalEvents(calendarName, newEvents) {
+        // Get all existing external events for this calendar
+        const existingExternalEvents = this.events.filter(e =>
+            e.calendar === calendarName && e.external && !e.deleted
+        );
+
+        const newEventsMap = new Map();
+        newEvents.forEach(e => {
+            // Key by uid and start time (to handle multiple instances of same UID like recurrence)
+            // But if we are flattened, each instance has a unique start time for that UID.
+            // Using uid + start is robust.
+            const key = `${e.uid}_${e.start}`;
+            newEventsMap.set(key, e);
+        });
+
+        // 1. Identify events to delete (present in DB but not in new fetch)
+        for (const existing of existingExternalEvents) {
+            const key = `${existing.uid}_${existing.start}`;
+            if (!newEventsMap.has(key)) {
+                // Delete
+                existing.deleted = true;
+                existing.updatedAt = Date.now();
+                await this.db.save('events', existing);
+            }
+        }
+
+        // 2. Identify events to add or update
+        for (const [key, newEventData] of newEventsMap) {
+            // Try to find existing by key
+            const existing = existingExternalEvents.find(e => `${e.uid}_${e.start}` === key);
+
+            if (existing) {
+                // Update if changed
+                // We compare simplified fields to avoid unnecessary writes
+                const hasChanged =
+                    existing.start !== newEventData.start ||
+                    existing.end !== newEventData.end ||
+                    existing.name !== newEventData.name ||
+                    existing.allDay !== newEventData.allDay ||
+                    existing.description !== newEventData.description ||
+                    existing.location !== newEventData.location;
+
+                if (hasChanged) {
+                    Object.assign(existing, newEventData);
+                    existing.updatedAt = Date.now();
+                    await this.db.save('events', existing);
+                }
+            } else {
+                // Insert new
+                // Need a new internal ID
+                const newEv = this._createEmptyEvent();
+                newEv.id = this._generateUniqueId();
+                Object.assign(newEv, newEventData);
+                newEv.calendar = calendarName;
+                newEv.external = true;
+                newEv.updatedAt = Date.now();
+
+                this.events.push(newEv);
+                await this.db.save('events', newEv);
+            }
+        }
+    }
 }

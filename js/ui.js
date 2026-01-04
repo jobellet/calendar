@@ -312,8 +312,9 @@ class UI {
             this.elements.addCalendarForm.addEventListener('submit', (e) => {
                 e.preventDefault();
                 const name = this.elements.newCalendarName.value.trim();
+                const url = document.getElementById('new-calendar-url').value.trim();
                 if (name) {
-                    this.app.addCalendar(name);
+                    this.app.addCalendar(name, url);
                     this.toggleModal(this.elements.addCalendarModal, false);
                 }
             });

@@ -46,11 +46,11 @@ class CalendarService {
         }
     }
 
-    async add(name) {
+    async add(name, url = null) {
         if (this.calendars.find(c => c.name === name)) {
             return null;
         }
-        const cal = { name, isVisible: true };
+        const cal = { name, isVisible: true, url: url };
         await this.db.save('calendars', cal);
         this.calendars.push(cal);
         this.visibleCalendars.add(name);
