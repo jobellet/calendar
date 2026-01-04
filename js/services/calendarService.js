@@ -70,4 +70,28 @@ class CalendarService {
             await this.db.save('calendars', cal);
         }
     }
+
+    async rename(oldName, newName) {
+        if (oldName === newName) return;
+        if (this.calendars.find(c => c.name === newName)) {
+            throw new Error('Calendar name already exists');
+        }
+
+        const cal = this.calendars.find(c => c.name === oldName);
+        if (!cal) return;
+
+        // Delete old entry
+        await this.db.delete('calendars', oldName);
+
+        const wasVisible = this.visibleCalendars.has(oldName);
+
+        cal.name = newName;
+
+        await this.db.save('calendars', cal);
+
+        if (wasVisible) {
+            this.visibleCalendars.delete(oldName);
+            this.visibleCalendars.add(newName);
+        }
+    }
 }
